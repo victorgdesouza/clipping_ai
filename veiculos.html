@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Veículos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
+        .notification-popup.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div><h1 class="text-3xl font-bold text-gray-800">Gestão de Veículos</h1><p id="user-email" class="text-sm text-gray-500"></p></div>
+                <a href="dashboard.html" class="text-blue-500 hover:underline">Voltar ao Dashboard</a>
+            </header>
+            <main>
+                <section class="mb-8">
+                    <h2 class="text-2xl font-semibold mb-4">Adicionar Novo Veículo</h2>
+                    <form id="veiculo-form" class="space-y-4 bg-gray-50 p-4 rounded-lg">
+                        <input type="text" name="name" placeholder="Nome do veículo" class="p-2 border rounded-md w-full" required>
+                        <input type="url" name="website" placeholder="https://www.sitedoveiculo.com (opcional)" class="p-2 border rounded-md w-full">
+                        <button type="submit" class="w-full bg-yellow-500 text-white font-bold py-3 px-4 rounded-md hover:bg-yellow-600">Guardar Veículo</button>
+                    </form>
+                </section>
+                 <section>
+                    <h2 class="text-2xl font-semibold mb-4">Veículos Registados</h2>
+                    <div id="veiculos-list" class="space-y-3"></div>
+                </section>
+            </main>
+        </div>
+    </div>
+    
+    <div id="edit-veiculo-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-4">Editar Veículo</h2>
+            <form id="edit-veiculo-form" class="space-y-4">
+                <input type="hidden" id="edit-veiculo-id">
+                <div><label for="edit-veiculo-name" class="block text-sm font-medium text-gray-700">Nome do Veículo</label><input type="text" id="edit-veiculo-name" class="mt-1 p-2 border rounded-md w-full" required></div>
+                <div><label for="edit-veiculo-website" class="block text-sm font-medium text-gray-700">Website</label><input type="url" id="edit-veiculo-website" class="mt-1 p-2 border rounded-md w-full"></div>
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" id="edit-veiculo-cancel" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="bg-yellow-500 text-white font-bold py-2 px-4 rounded-md hover:bg-yellow-600">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
+    <div id="confirmation-modal" class="modal-overlay hidden"><div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm text-center"><p id="confirmation-message" class="mb-4 text-lg"></p><div class="flex justify-center gap-4"><button id="confirmation-cancel-btn" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">Cancelar</button><button id="confirmation-confirm-btn" class="bg-red-600 text-white font-bold py-2 px-6 rounded-md hover:bg-red-700">Confirmar</button></div></div></div>
+
+    <script>
+        // --- CÓDIGO AUTOSSUFICIENTE ---
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        let allVeiculos = [];
+
+        function showNotification(message, type = 'success') { /* ...código... */ }
+        function showConfirmation(message) { /* ...código... */ }
+        Object.assign(showNotification, { body: `const p = document.getElementById('notification-popup'); if(!p)return; const m=p.querySelector('p'); if(!m)return; m.textContent=message; p.className='notification-popup show'; p.style.backgroundColor=type==='error'?'#ef4444':'#22c55e'; setTimeout(()=>{p.classList.remove('show');},3500);` });
+        Object.assign(showConfirmation, { body: `return new Promise(r => { const m=document.getElementById('confirmation-modal'); const t=document.getElementById('confirmation-message'); const c=document.getElementById('confirmation-confirm-btn'); const n=document.getElementById('confirmation-cancel-btn'); if(!m||!t||!c||!n){r(false);return;} t.textContent=message; m.classList.remove('hidden'); const h=()=>{m.classList.add('hidden');l();r(true);}; const a=()=>{m.classList.add('hidden');l();r(false);}; c.addEventListener('click',h,{once:true}); n.addEventListener('click',a,{once:true}); function l(){c.removeEventListener('click',h); n.removeEventListener('click',a);} });` });
+        
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            document.getElementById('user-email').textContent = session.user.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
+
+        function initializePage() {
+            fetchVeiculos();
+            document.getElementById('veiculo-form').addEventListener('submit', handleAddVeiculo);
+            document.getElementById('edit-veiculo-form').addEventListener('submit', handleUpdateVeiculo);
+            document.getElementById('edit-veiculo-cancel').addEventListener('click', () => document.getElementById('edit-veiculo-modal').classList.add('hidden'));
+        }
+
+        async function fetchVeiculos() {
+            const listElement = document.getElementById('veiculos-list');
+            listElement.innerHTML = `<div class="loader mx-auto"></div>`;
+            const { data, error } = await supabaseClient.from('veiculos').select('*').order('name', { ascending: true });
+            if (error) { showNotification('Não foi possível carregar a lista de veículos.', 'error'); return; }
+
+            allVeiculos = data;
+            listElement.innerHTML = '';
+            if (!allVeiculos || allVeiculos.length === 0) {
+                listElement.innerHTML = '<p class="text-sm text-gray-500 italic">Nenhum veículo registado.</p>';
+            } else {
+                allVeiculos.forEach(veiculo => renderVehicleCard(listElement, veiculo));
+            }
+        }
+
+        function renderVehicleCard(listElement, veiculo) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'flex items-center justify-between bg-gray-100 p-3 rounded-md';
+            const websiteHtml = veiculo.website ? `<a href="${veiculo.website}" target="_blank" class="text-xs text-blue-500 hover:underline">${veiculo.website}</a>` : `<span class="text-xs text-gray-400">Sem site</span>`;
+            itemDiv.innerHTML = `<div class="flex flex-col flex-grow"><span class="font-semibold truncate">${veiculo.name}</span>${websiteHtml}</div><div class="flex-shrink-0 flex items-center gap-4"><button data-id="${veiculo.id}" class="edit-btn text-blue-500 hover:text-blue-700 font-semibold">Editar</button><button data-id="${veiculo.id}" class="delete-btn text-red-400 hover:text-red-600 font-bold text-xl leading-none">&times;</button></div>`;
+            listElement.appendChild(itemDiv);
+            itemDiv.querySelector('.delete-btn').addEventListener('click', handleDeleteVeiculo);
+            itemDiv.querySelector('.edit-btn').addEventListener('click', handleOpenEditModal);
+        }
+
+        async function handleAddVeiculo(e) {
+            e.preventDefault();
+            const form = e.target;
+            const name = form.name.value.trim();
+            const website = form.website.value.trim();
+            if (!name) { showNotification("O nome do veículo é obrigatório.", "error"); return; }
+            try {
+                const { error } = await supabaseClient.from('veiculos').insert({ name, website });
+                if (error) throw error;
+                showNotification("Veículo guardado com sucesso!", "success");
+                form.reset();
+                fetchVeiculos();
+            } catch (error) {
+                if (error.code === '23505') { showNotification('Erro: Já existe um veículo com este nome.', 'error'); } 
+                else { showNotification(`Não foi possível guardar o veículo: ${error.message}`, 'error'); }
+            }
+        }
+        
+        async function handleDeleteVeiculo(e) {
+            const veiculoId = e.target.dataset.id;
+            const confirmed = await showConfirmation("Tem a certeza que deseja apagar este veículo?");
+            if (!confirmed) return;
+            try {
+                const { error } = await supabaseClient.from('veiculos').delete().eq('id', veiculoId);
+                if (error) throw error;
+                showNotification("Veículo apagado com sucesso.", "success");
+                fetchVeiculos();
+            } catch (error) {
+                showNotification(`Falha ao apagar veículo: ${error.message}`, 'error');
+            }
+        }
+
+        function handleOpenEditModal(e) {
+            const veiculo = allVeiculos.find(v => v.id == e.target.dataset.id);
+            if (!veiculo) return;
+            document.getElementById('edit-veiculo-id').value = veiculo.id;
+            document.getElementById('edit-veiculo-name').value = veiculo.name;
+            document.getElementById('edit-veiculo-website').value = veiculo.website || '';
+            document.getElementById('edit-veiculo-modal').classList.add('hidden');
+        }
+
+        async function handleUpdateVeiculo(e) {
+            e.preventDefault();
+            const veiculoId = document.getElementById('edit-veiculo-id').value;
+            const newName = document.getElementById('edit-veiculo-name').value;
+            const newWebsite = document.getElementById('edit-veiculo-website').value;
+            try {
+                const { error } = await supabaseClient.from('veiculos').update({ name: newName, website: newWebsite }).eq('id', veiculoId);
+                if (error) throw error;
+                showNotification("Veículo atualizado com sucesso!", "success");
+                document.getElementById('edit-veiculo-modal').classList.add('hidden');
+                fetchVeiculos();
+            } catch (error) {
+                if (error.code === '23505') { showNotification('Erro: Já existe um veículo com este novo nome.', 'error'); }
+                else { showNotification(`Não foi possível atualizar o veículo: ${error.message}`, 'error'); }
+            }
+        }
+
+        (function(){
+            window.showNotification = new Function('message', 'type = "success"', showNotification.body);
+            window.showConfirmation = new Function('message', showConfirmation.body);
+            handleAuth();
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios de Desempenho</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .page-break { page-break-before: always; }
+        #modal-close-btn { line-height: 1; padding-bottom: 3px; }
+        .report-content h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .report-content p, .report-content li { margin-bottom: 1rem; line-height: 1.6; }
+        .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
+        .notification-popup.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div><h1 class="text-3xl font-bold text-gray-800">Gerador de Relatórios</h1><p id="user-email" class="text-sm text-gray-500"></p></div>
+                <a href="dashboard.html" class="text-blue-500 hover:underline">Voltar ao Dashboard</a>
+            </header>
+            <main>
+                <section>
+                    <h2 class="text-2xl font-semibold mb-4">1. Filtros do Relatório</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                        <select id="cliente-select-report" class="p-2 border rounded-md w-full" required><option value="">Selecione um Cliente</option></select>
+                        <input type="month" id="month-select-report" class="p-2 border rounded-md w-full text-gray-500" required>
+                        <button id="generate-report-btn" class="w-full bg-purple-600 text-white font-bold py-2 px-4 rounded-md hover:bg-purple-700">Gerar Relatório</button>
+                    </div>
+                </section>
+                <section class="mt-4 space-y-4 bg-gray-50 p-4 rounded-lg">
+                    <h2 class="text-2xl font-semibold mb-2">2. Conteúdo do Relatório</h2>
+                    <div><label for="overview-input" class="block text-sm font-medium text-gray-700">Resumo do Mês (Overview)</label><textarea id="overview-input" rows="5" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Digite aqui o texto de abertura do relatório..."></textarea></div>
+                    <div><label for="next-steps-input" class="block text-sm font-medium text-gray-700">Próximos Passos</label><textarea id="next-steps-input" rows="5" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="Liste aqui as atividades e estratégias para o próximo mês..."></textarea></div>
+                </section>
+                <section id="report-editor-wrapper" class="mt-6 hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-gray-700">3. Pré-visualização do Relatório</h2>
+                        <button id="export-pdf-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 flex items-center gap-2">Exportar para PDF</button>
+                    </div>
+                    <div id="report-editor" class="p-8 bg-white border rounded-lg"></div>
+                </section>
+                <div id="image-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+                    <div class="relative bg-white p-2 rounded-lg max-w-4xl max-h-full shadow-2xl">
+                        <button id="modal-close-btn" class="absolute -top-3 -right-3 bg-white rounded-full h-8 w-8 text-black font-bold text-2xl flex items-center justify-center">&times;</button>
+                        <img id="modal-image" src="" alt="Clipping Ampliado" class="w-full h-auto object-contain max-h-[90vh]">
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
+
+    <script>
+        // --- CÓDIGO AUTOSSUFICIENTE ---
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        
+        let currentUser = null;
+        let userProfile = null;
+        let chartInstances = {};
+
+        function showNotification(message, type = 'success') {
+            const popup = document.getElementById('notification-popup');
+            if (!popup) return;
+            const messageEl = popup.querySelector('p');
+            if (!messageEl) return;
+            messageEl.textContent = message;
+            popup.className = 'notification-popup show';
+            popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
+            setTimeout(() => { popup.classList.remove('show'); }, 3500);
+        }
+
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+            userProfile = profile;
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
+
+        function initializePage() {
+            populateClientSelect();
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('month-select-report').value = today.substring(0, 7);
+            document.getElementById('generate-report-btn').addEventListener('click', generateReport);
+            document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+            const imageModal = document.getElementById('image-modal');
+            document.getElementById('modal-close-btn').addEventListener('click', () => imageModal.classList.add('hidden'));
+            imageModal.addEventListener('click', (e) => {
+                if (e.target === imageModal) imageModal.classList.add('hidden');
+            });
+        }
+
+        async function populateClientSelect() {
+            let query = supabaseClient.from('clientes').select('name, logo_url').order('name');
+            if (userProfile && userProfile.role !== 'admin' && userProfile.role !== 'chefe') {
+                query = query.eq('user_id', currentUser.id);
+            }
+            const { data, error } = await query;
+            if (error) { showNotification("Não foi possível carregar a lista de clientes.", "error"); return; }
+            const selectElement = document.getElementById('cliente-select-report');
+            selectElement.innerHTML = '<option value="">Selecione um Cliente</option>';
+            data.forEach(client => {
+                const option = new Option(client.name, client.name);
+                option.dataset.logo = client.logo_url || '';
+                selectElement.add(option);
+            });
+        }
+        
+        async function generateReport() {
+            const clienteSelect = document.getElementById('cliente-select-report');
+            const clienteName = clienteSelect.value;
+            const monthYear = document.getElementById('month-select-report').value;
+            if (!clienteName || !monthYear) { showNotification("Selecione um cliente e um mês.", "error"); return; }
+
+            const btn = document.getElementById('generate-report-btn');
+            btn.textContent = "Gerando...";
+            btn.disabled = true;
+            
+            const selectedClientLogo = clienteSelect.options[clienteSelect.selectedIndex].dataset.logo;
+            const overviewText = document.getElementById('overview-input').value;
+            const nextStepsText = document.getElementById('next-steps-input').value;
+
+            const [year, month] = monthYear.split('-').map(Number);
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+            
+            try {
+                let clippingsQuery = supabaseClient.from('clippings').select('*').eq('cliente', clienteName).gte('data_publicacao', startDate).lte('data_publicacao', endDate);
+                let activitiesQuery = supabaseClient.from('atividades').select('*').eq('cliente', clienteName).gte('data_atividade', startDate).lte('data_atividade', endDate);
+                
+                if (userProfile && userProfile.role !== 'admin' && userProfile.role !== 'chefe') {
+                    clippingsQuery = clippingsQuery.eq('user_id', currentUser.id);
+                    activitiesQuery = activitiesQuery.eq('user_id', currentUser.id);
+                }
+
+                const [clippingsResult, activitiesResult] = await Promise.all([ clippingsQuery, activitiesQuery ]);
+                if (clippingsResult.error) throw clippingsResult.error;
+                if (activitiesResult.error) throw activitiesResult.error;
+                
+                updateReportUI(clienteName, selectedClientLogo, monthYear, clippingsResult.data, activitiesResult.data, overviewText, nextStepsText);
+                document.getElementById('report-editor-wrapper').classList.remove('hidden');
+            } catch (error) {
+                showNotification("Falha ao gerar relatório: " + error.message, "error");
+            } finally {
+                btn.textContent = "Gerar Relatório";
+                btn.disabled = false;
+            }
+        }
+        
+        function updateReportUI(clienteName, logoUrl, monthYear, clippings, activities, overviewText, nextStepsText) {
+            const editor = document.getElementById('report-editor');
+            const [year, month] = monthYear.split('-');
+            const monthName = new Date(year, parseInt(month) - 1).toLocaleString('pt-BR', { month: 'long' });
+            
+            const highlights = calculateHighlights(clippings, activities);
+            editor.innerHTML = `
+                <div id="report-cover" class="text-center p-10 border-b-2 mb-10">
+                    ${logoUrl ? `<img src="${logoUrl}" alt="Logótipo do Cliente" class="max-h-24 mx-auto object-contain mb-6">` : '<div class="h-24"></div>'}
+                    <h1 class="text-4xl font-bold text-gray-800">${clienteName}</h1>
+                    <p class="text-xl mt-2 text-gray-600">Relatório de Atividades e Clipping - ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}</p>
+                </div>
+                <div class="pt-8"><h2 class="text-3xl font-bold border-b-2 pb-2 mb-6">Overview</h2><div class="mt-4 text-gray-700 text-lg italic">${overviewText.replace(/\n/g, '<br>')}</div></div>
+                <div class="page-break pt-8"><h2 class="text-3xl font-bold border-b-2 pb-2 mb-6">Destaques</h2><div id="report-highlights" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"></div></div>
+                <div class="page-break pt-8">
+                    <h2 class="text-3xl font-bold border-b-2 pb-2 mb-6">Análise de Mídia</h2>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="p-4 rounded-lg bg-gray-50">
+                            <h3 class="text-xl font-semibold mb-4 text-center text-gray-700">Matérias por Classificação</h3>
+                            <div class="relative h-80"><canvas id="classificationChart"></canvas></div>
+                        </div>
+                        <div class="p-4 rounded-lg bg-gray-50">
+                            <h3 class="text-xl font-semibold mb-4 text-center text-gray-700">Top 5 Veículos</h3>
+                            <div class="relative h-80"><canvas id="topVehiclesChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="mt-8 p-4 rounded-lg bg-gray-50">
+                        <h3 class="text-xl font-semibold mb-4 text-center text-gray-700">Evolução no Mês</h3>
+                        <div class="relative h-80"><canvas id="monthlyTrendChart"></canvas></div>
+                    </div>
+                </div>
+                <div class="page-break pt-8"><h2 class="text-3xl font-bold border-b-2 pb-2 mb-6">Atividades Realizadas</h2><div id="report-activities-content" class="report-content space-y-6"></div></div>
+                <div class="page-break pt-8"><h2 class="text-3xl font-bold border-b-2 pb-2 mb-6">Clipping Detalhado</h2><div id="report-clippings-list" class="space-y-4"></div></div>
+                <div class="page-break pt-8"><h2 class="text-3xl font-bold border-b-2 pb-2 mb-6">Próximos Passos</h2><div class="report-content prose">${nextStepsText.replace(/\n/g, '<br>')}</div></div>
+            `;
+            renderHighlights(highlights);
+            createCharts(clippings, year, parseInt(month));
+            renderActivitiesList(activities);
+            renderClippingsList(clippings);
+        }
+        
+        function calculateHighlights(clippings, activities) {
+            const clippingsCount = clippings.length;
+            const positiveCount = clippings.filter(c => c.classificacao === 'Positiva').length;
+            const negativeCount = clippings.filter(c => c.classificacao === 'Negativa').length;
+            const activitiesCount = activities.length;
+            return { clippingsCount, positiveCount, negativeCount, activitiesCount };
+        }
+        
+        function renderHighlights(highlights) {
+            const container = document.getElementById('report-highlights');
+            container.innerHTML = `
+                <div class="bg-blue-100 p-4 rounded-lg"><p class="text-3xl font-bold text-blue-800">${highlights.clippingsCount}</p><p class="text-sm text-blue-600">Matérias</p></div>
+                <div class="bg-green-100 p-4 rounded-lg"><p class="text-3xl font-bold text-green-800">${highlights.positiveCount}</p><p class="text-sm text-green-600">Positivas</p></div>
+                <div class="bg-red-100 p-4 rounded-lg"><p class="text-3xl font-bold text-red-800">${highlights.negativeCount}</p><p class="text-sm text-red-600">Negativas</p></div>
+                <div class="bg-purple-100 p-4 rounded-lg"><p class="text-3xl font-bold text-purple-800">${highlights.activitiesCount}</p><p class="text-sm text-purple-600">Atividades</p></div>
+            `;
+        }
+
+        function createCharts(data, year, month) {
+            Object.values(chartInstances).forEach(chart => chart.destroy());
+            const classificationCtx = document.getElementById('classificationChart').getContext('2d');
+            const vehicleCtx = document.getElementById('topVehiclesChart').getContext('2d');
+            const monthlyCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+            
+            const classData = { Positiva: 0, Negativa: 0, Neutra: 0 };
+            data.forEach(c => { classData[c.classificacao]++; });
+            chartInstances.classification = new Chart(classificationCtx, { type: 'doughnut', data: { labels: Object.keys(classData), datasets: [{ data: Object.values(classData), backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+            
+            const vehicleCounts = data.reduce((acc, c) => { acc[c.veiculo] = (acc[c.veiculo] || 0) + 1; return acc; }, {});
+            const topVehicles = Object.entries(vehicleCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            chartInstances.topVehicles = new Chart(vehicleCtx, { type: 'bar', data: { labels: topVehicles.map(v => v[0]), datasets: [{ label: 'Matérias', data: topVehicles.map(v => v[1]), backgroundColor: '#8b5cf6' }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+            
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const dailyCounts = Array(daysInMonth).fill(0);
+            data.forEach(c => { const day = new Date(c.data_publicacao).getUTCDate() - 1; if(day >= 0 && day < daysInMonth) dailyCounts[day]++; });
+            chartInstances.monthly = new Chart(monthlyCtx, { type: 'line', data: { labels: Array.from({length: daysInMonth}, (_, i) => i + 1), datasets: [{ label: 'Matérias por Dia', data: dailyCounts, borderColor: '#3b82f6', tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        }
+        
+        function renderActivitiesList(activities) {
+            const container = document.getElementById('report-activities-content');
+            if(activities.length === 0){ container.innerHTML = '<p>Nenhuma atividade registrada neste mês.</p>'; return; }
+            activities.sort((a, b) => new Date(a.data_atividade) - new Date(b.data_atividade));
+            let html = '<ul>';
+            activities.forEach(a => {
+                const date = new Date(a.data_atividade);
+                date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+                html += `<li><strong>[${date.toLocaleDateString('pt-BR')}] ${a.tipo}:</strong> ${a.titulo}</li>`;
+            });
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+
+        function renderClippingsList(clippings) {
+            const container = document.getElementById('report-clippings-list');
+            if(clippings.length === 0){ container.innerHTML = '<p>Nenhum clipping encontrado neste mês.</p>'; return; }
+            container.innerHTML = '';
+            clippings.sort((a, b) => new Date(a.data_publicacao) - new Date(b.data_publicacao));
+            clippings.forEach(c => {
+                const card = document.createElement('div');
+                const date = new Date(c.data_publicacao);
+                date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+                card.className = 'p-4 border rounded-lg mb-4';
+                card.innerHTML = `<h4 class="font-bold">${c.titulo}</h4><p class="text-sm"><strong>Veículo:</strong> ${c.veiculo} | <strong>Data:</strong> ${date.toLocaleDateString('pt-BR')} | <strong>Classificação:</strong> ${c.classificacao}</p>` +
+                                (c.link ? `<a href="${c.link}" target="_blank" class="text-sm text-blue-500 hover:underline">Ver online</a>` : '') +
+                                (c.image_url ? `<img src="${c.image_url}" class="mt-2 max-w-xs h-auto rounded cursor-pointer report-image">` : '');
+                container.appendChild(card);
+            });
+            document.querySelectorAll('.report-image').forEach(img => {
+                img.addEventListener('click', e => {
+                    document.getElementById('modal-image').src = e.target.src;
+                    document.getElementById('image-modal').classList.remove('hidden');
+                });
+            });
+        }
+
+        async function exportToPDF() {
+            const editor = document.getElementById('report-editor');
+            const btn = document.getElementById('export-pdf-btn');
+            const clienteName = document.getElementById('cliente-select-report').value;
+            const monthYear = document.getElementById('month-select-report').value;
+            const [year, month] = monthYear.split('-');
+            const monthName = new Date(year, parseInt(month) - 1).toLocaleString('pt-BR', { month: 'long' });
+
+            btn.textContent = 'Aguarde...';
+            btn.disabled = true;
+
+            const canvasElements = editor.querySelectorAll('canvas');
+            const imageReplacements = [];
+
+            // Converte cada canvas de gráfico para uma imagem estática
+            for (const canvas of canvasElements) {
+                const chartInstance = Object.values(chartInstances).find(c => c.canvas === canvas);
+                if (chartInstance) {
+                    const image = new Image();
+                    image.src = chartInstance.toBase64Image('image/jpeg', 1.0);
+                    image.style.maxWidth = '100%';
+                    image.style.height = 'auto';
+
+                    imageReplacements.push({ canvas, image });
+                    canvas.style.display = 'none';
+                    canvas.parentNode.appendChild(image);
+                }
+            }
+            
+            // AJUSTE: Nome do arquivo dinâmico e opções de PDF melhoradas
+            const sanitizedClienteName = clienteName.replace(/\s+/g, '-').toLowerCase();
+            const dateStr = `${monthName}-${year}`;
+
+            const opt = {
+                margin:       [0.5, 0.5, 0.5, 0.5],
+                filename:     `relatorio_${sanitizedClienteName}_${dateStr}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // Modo de quebra de página aprimorado
+            };
+
+            // Gera o PDF e depois restaura os gráficos
+            await html2pdf().set(opt).from(editor).save().then(() => {
+                imageReplacements.forEach(({ canvas, image }) => {
+                    canvas.style.display = 'block';
+                    if (image.parentNode) {
+                        image.parentNode.removeChild(image);
+                    }
+                });
+                btn.textContent = 'Exportar para PDF';
+                btn.disabled = false;
+            });
+        }
+
+        handleAuth();
+    </script>
+</body>
+</html>

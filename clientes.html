@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Clientes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .spinner-overlay, .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
+        .notification-popup.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+    <div id="spinner" class="spinner-overlay hidden"><div class="loader" style="width: 50px; height: 50px; border-top-color: #fff;"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div><h1 class="text-3xl font-bold text-gray-800">Gestão dos Meus Clientes</h1><p id="user-email" class="text-sm text-gray-500"></p></div>
+                <a href="dashboard.html" class="text-blue-500 hover:underline">Voltar ao Dashboard</a>
+            </header>
+            <main>
+                <section class="mb-8">
+                    <h2 class="text-2xl font-semibold mb-4">Adicionar Novo Cliente à Minha Carteira</h2>
+                    <form id="cliente-form" class="space-y-4 bg-gray-50 p-4 rounded-lg">
+                        <input type="text" name="name" placeholder="Nome do cliente" class="p-2 border rounded-md w-full" required>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Logótipo do Cliente (opcional)</label>
+                            <input type="file" name="logo" accept="image/png, image/jpeg" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-500 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-600">Guardar Cliente</button>
+                    </form>
+                </section>
+                <section>
+                    <h2 class="text-2xl font-semibold mb-4">Meus Clientes Registados</h2>
+                    <div id="clientes-list" class="space-y-3"></div>
+                </section>
+            </main>
+        </div>
+    </div>
+    
+    <div id="edit-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-4">Editar Cliente</h2>
+            <form id="edit-cliente-form" class="space-y-4">
+                <input type="hidden" id="edit-cliente-id"><input type="hidden" id="edit-cliente-old-logo-path">
+                <div><label for="edit-cliente-name" class="block text-sm font-medium text-gray-700">Nome do Cliente</label><input type="text" id="edit-cliente-name" class="mt-1 p-2 border rounded-md w-full" required></div>
+                <div><label class="block text-sm font-medium text-gray-700">Logótipo Atual</label><img id="edit-cliente-current-logo" src="" class="mt-1 h-16 object-contain border p-1 rounded"></div>
+                <div><label for="edit-cliente-new-logo" class="block text-sm font-medium text-gray-700">Trocar Logótipo (opcional)</label><input type="file" id="edit-cliente-new-logo" accept="image/png, image/jpeg" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/></div>
+                <div class="flex justify-end gap-4 pt-4"><button type="button" id="edit-modal-cancel" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Cancelar</button><button type="submit" class="bg-indigo-500 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-600">Salvar Alterações</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
+    <div id="confirmation-modal" class="modal-overlay hidden"><div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm text-center"><p id="confirmation-message" class="mb-4 text-lg"></p><div class="flex justify-center gap-4"><button id="confirmation-cancel-btn" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">Cancelar</button><button id="confirmation-confirm-btn" class="bg-red-600 text-white font-bold py-2 px-6 rounded-md hover:bg-red-700">Confirmar</button></div></div></div>
+
+    <script>
+        // --- CÓDIGO AUTOSSUFICIENTE ---
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+        let myClients = [];
+
+        function showNotification(message, type = 'success') { /* ...código da função... */ }
+        function showConfirmation(message) { /* ...código da função... */ }
+        
+        // Colando o corpo das funções de notificação e confirmação aqui para economizar espaço
+        Object.assign(showNotification, {
+            body: `const popup = document.getElementById('notification-popup'); if (!popup) return; const messageEl = popup.querySelector('p'); if (!messageEl) return; messageEl.textContent = message; popup.className = 'notification-popup show'; popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e'; setTimeout(() => { popup.classList.remove('show'); }, 3500);`
+        });
+        Object.assign(showConfirmation, {
+            body: `return new Promise(resolve => { const modal = document.getElementById('confirmation-modal'); const messageEl = document.getElementById('confirmation-message'); const confirmBtn = document.getElementById('confirmation-confirm-btn'); const cancelBtn = document.getElementById('confirmation-cancel-btn'); if (!modal || !messageEl || !confirmBtn || !cancelBtn) { resolve(false); return; } messageEl.textContent = message; modal.classList.remove('hidden'); const confirmHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(true); }; const cancelHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(false); }; confirmBtn.addEventListener('click', confirmHandler, { once: true }); cancelBtn.addEventListener('click', cancelHandler, { once: true }); function cleanup() { confirmBtn.removeEventListener('click', confirmHandler); cancelBtn.removeEventListener('click', cancelHandler); } });`
+        });
+
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
+
+        function sanitizeFilename(filename) { const s = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase(); }
+        
+        function initializePage() {
+            fetchMyClients();
+            document.getElementById('cliente-form').addEventListener('submit', handleAddClient);
+            document.getElementById('edit-cliente-form').addEventListener('submit', handleUpdateClient);
+            document.getElementById('edit-modal-cancel').addEventListener('click', () => document.getElementById('edit-modal').classList.add('hidden'));
+        }
+
+        async function fetchMyClients() {
+            const listElement = document.getElementById('clientes-list');
+            listElement.innerHTML = `<div class="loader mx-auto"></div>`;
+            const { data, error } = await supabaseClient.from('clientes').select('*').eq('user_id', currentUser.id).order('name', { ascending: true });
+            if (error) { showNotification('Não foi possível carregar os seus clientes.', 'error'); return; }
+            myClients = data;
+            listElement.innerHTML = '';
+            if (!myClients || myClients.length === 0) { listElement.innerHTML = '<p class="text-sm text-gray-500 italic">Nenhum cliente na sua carteira.</p>'; } 
+            else { myClients.forEach(c => renderClientCard(listElement, c)); }
+        }
+
+        function renderClientCard(listElement, cliente) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'flex items-center justify-between bg-gray-100 p-3 rounded-md';
+            const logoHtml = cliente.logo_url ? `<img src="${cliente.logo_url}" alt="Logótipo" class="w-16 h-10 object-contain mr-4">` : `<div class="w-16 h-10 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500 mr-4">Sem logo</div>`;
+            itemDiv.innerHTML = `<div class="flex items-center flex-grow">${logoHtml}<span class="font-semibold truncate">${cliente.name}</span></div><div class="flex-shrink-0 flex gap-2"><button data-id="${cliente.id}" class="edit-btn text-blue-500 hover:text-blue-700 font-semibold">Editar</button><button data-id="${cliente.id}" data-logo-path="${cliente.logo_path || ''}" class="delete-btn text-red-400 hover:text-red-600 font-bold">X</button></div>`;
+            listElement.appendChild(itemDiv);
+            itemDiv.querySelector('.delete-btn').addEventListener('click', handleDeleteClient);
+            itemDiv.querySelector('.edit-btn').addEventListener('click', handleOpenEditModal);
+        }
+
+        function handleOpenEditModal(e) {
+            const cliente = myClients.find(c => c.id == e.target.dataset.id);
+            if (!cliente) return;
+            document.getElementById('edit-cliente-id').value = cliente.id;
+            document.getElementById('edit-cliente-name').value = cliente.name;
+            document.getElementById('edit-cliente-old-logo-path').value = cliente.logo_path || '';
+            document.getElementById('edit-cliente-current-logo').src = cliente.logo_url || 'https://placehold.co/150x100/f3f4f6/9ca3af?text=Sem+Logo';
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        async function handleAddClient(e) {
+            e.preventDefault();
+            const form = e.target;
+            document.getElementById('spinner').classList.remove('hidden');
+            try {
+                const name = form.name.value.trim();
+                const logoFile = form.logo.files[0];
+                if (!name) throw new Error("O nome do cliente é obrigatório.");
+                let logo_url = null, logo_path = null;
+                if (logoFile) {
+                    const sanitizedName = sanitizeFilename(logoFile.name);
+                    const newFilePath = `${currentUser.id}/${Date.now()}_${sanitizedName}`;
+                    const { error: uploadError } = await supabaseClient.storage.from('logos').upload(newFilePath, logoFile);
+                    if (uploadError) throw uploadError;
+                    const { data: urlData } = supabaseClient.storage.from('logos').getPublicUrl(newFilePath);
+                    logo_url = urlData.publicUrl;
+                    logo_path = newFilePath;
+                }
+                const { error: insertError } = await supabaseClient.from('clientes').insert({ name, logo_url, logo_path, user_id: currentUser.id });
+                if (insertError) throw insertError;
+                showNotification('Cliente adicionado com sucesso!', 'success');
+                form.reset();
+                fetchMyClients();
+            } catch (error) { showNotification(`Falha ao adicionar cliente: ${error.message}`, 'error'); } finally { document.getElementById('spinner').classList.add('hidden'); }
+        }
+
+        async function handleUpdateClient(e) {
+            e.preventDefault();
+            document.getElementById('spinner').classList.remove('hidden');
+            const clientId = document.getElementById('edit-cliente-id').value;
+            const newName = document.getElementById('edit-cliente-name').value;
+            const newLogoFile = document.getElementById('edit-cliente-new-logo').files[0];
+            const oldLogoPath = document.getElementById('edit-cliente-old-logo-path').value;
+            try {
+                let updateData = { name: newName };
+                if (newLogoFile) {
+                    if (oldLogoPath) await supabaseClient.storage.from('logos').remove([oldLogoPath]);
+                    const sanitizedName = sanitizeFilename(newLogoFile.name);
+                    const newFilePath = `${currentUser.id}/${Date.now()}_${sanitizedName}`;
+                    const { error: uploadError } = await supabaseClient.storage.from('logos').upload(newFilePath, newLogoFile);
+                    if (uploadError) throw uploadError;
+                    const { data: urlData } = supabaseClient.storage.from('logos').getPublicUrl(newFilePath);
+                    updateData.logo_url = urlData.publicUrl;
+                    updateData.logo_path = newFilePath;
+                }
+                const { error: updateError } = await supabaseClient.from('clientes').update(updateData).eq('id', clientId);
+                if (updateError) throw updateError;
+                showNotification('Cliente atualizado com sucesso!', 'success');
+                document.getElementById('edit-modal').classList.add('hidden');
+                fetchMyClients();
+            } catch (error) { showNotification(`Falha ao atualizar cliente: ${error.message}`, 'error'); } finally { document.getElementById('spinner').classList.add('hidden'); }
+        }
+
+        async function handleDeleteClient(e) {
+            const button = e.target;
+            const confirmed = await showConfirmation("Tem a certeza que deseja apagar este cliente?");
+            if (!confirmed) return;
+            try {
+                if (button.dataset.logoPath) await supabaseClient.storage.from('logos').remove([button.dataset.logoPath]);
+                const { error } = await supabaseClient.from('clientes').delete().eq('id', button.dataset.id);
+                if (error) throw error;
+                showNotification('Cliente apagado com sucesso.', 'success');
+                fetchMyClients();
+            } catch (error) { showNotification(`Falha ao apagar cliente: ${error.message}`, 'error'); }
+        }
+
+        (function() {
+            // Recriando as funções de notificação para garantir que estão definidas
+            const showNotificationBody = `const popup = document.getElementById('notification-popup'); if (!popup) return; const messageEl = popup.querySelector('p'); if (!messageEl) return; messageEl.textContent = message; popup.className = 'notification-popup show'; popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e'; setTimeout(() => { popup.classList.remove('show'); }, 3500);`;
+            const showConfirmationBody = `return new Promise(resolve => { const modal = document.getElementById('confirmation-modal'); const messageEl = document.getElementById('confirmation-message'); const confirmBtn = document.getElementById('confirmation-confirm-btn'); const cancelBtn = document.getElementById('confirmation-cancel-btn'); if (!modal || !messageEl || !confirmBtn || !cancelBtn) { resolve(false); return; } messageEl.textContent = message; modal.classList.remove('hidden'); const confirmHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(true); }; const cancelHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(false); }; confirmBtn.addEventListener('click', confirmHandler, { once: true }); cancelBtn.addEventListener('click', cancelHandler, { once: true }); function cleanup() { confirmBtn.removeEventListener('click', confirmHandler); cancelBtn.removeEventListener('click', cancelHandler); } });`;
+            window.showNotification = new Function('message', 'type = "success"', showNotificationBody);
+            window.showConfirmation = new Function('message', showConfirmationBody);
+            handleAuth();
+        })();
+    </script>
+</body>
+</html>

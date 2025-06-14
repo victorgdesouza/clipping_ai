@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Plataforma de Clipping</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- O script do Supabase vem sempre primeiro -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Plataforma de Clipping</h1>
+                    <p id="user-email" class="text-sm text-gray-500"></p>
+                </div>
+                <button id="logout-button" class="mt-2 md:mt-0 bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700">Sair</button>
+            </header>
+            <main>
+                <h2 class="text-2xl font-semibold mb-6">Acesso Rápido</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <a href="clipping.html" class="block p-6 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600"><h3 class="font-bold text-xl">Lançar Clipping</h3><p class="mt-2 text-sm">Adicionar novas matérias.</p></a>
+                    <a href="atividades.html" class="block p-6 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600"><h3 class="font-bold text-xl">Atividades da Agência</h3><p class="mt-2 text-sm">Registar releases e ações.</p></a>
+                    <a href="clientes.html" class="block p-6 bg-indigo-500 text-white rounded-lg shadow-md hover:bg-indigo-600"><h3 class="font-bold text-xl">Gerir Meus Clientes</h3><p class="mt-2 text-sm">Adicionar e ver sua carteira.</p></a>
+                    <a href="veiculos.html" class="block p-6 bg-yellow-500 text-white rounded-lg shadow-md hover:bg-yellow-600"><h3 class="font-bold text-xl">Gerir Veículos</h3><p class="mt-2 text-sm">Adicionar veículos de mídia.</p></a>
+                    <a href="relatorios.html" class="block p-6 bg-purple-500 text-white rounded-lg shadow-md hover:bg-purple-600"><h3 class="font-bold text-xl">Relatórios</h3><p class="mt-2 text-sm">Gerar relatórios mensais.</p></a>
+                    <a id="admin-link" href="gerenciar_usuarios.html" class="hidden block p-6 bg-gray-700 text-white rounded-lg shadow-md hover:bg-gray-800"><h3 class="font-bold text-xl">Gerenciar Usuários</h3><p class="mt-2 text-sm">Definir permissões e funções.</p></a>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Todo o JavaScript necessário para esta página está aqui dentro -->
+    <script>
+        // 1. Define as credenciais e inicializa o Cliente Supabase
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // 2. Lógica Central de Autenticação
+        async function handleAuth() {
+            const loadingScreen = document.getElementById('loading-screen');
+            const mainContent = document.getElementById('main-content');
+            
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+            if (error) {
+                console.error("Erro ao buscar sessão:", error);
+                loadingScreen.innerHTML = '<p style="color:red;">Erro de conexão.</p>';
+                return;
+            }
+
+            if (!session) {
+                // Se não há sessão, redireciona para a página de login.
+                window.location.href = '/index.html';
+                return;
+            }
+
+            // Se chegamos aqui, o usuário está logado.
+            const user = session.user;
+            
+            // Busca o perfil do usuário para saber a sua função (role)
+            const { data: profile } = await supabaseClient
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            // Preenche os dados na tela
+            document.getElementById('user-email').textContent = user.email;
+
+            // Adiciona a funcionalidade de logout
+            document.getElementById('logout-button').addEventListener('click', async () => {
+                await supabaseClient.auth.signOut();
+                window.location.href = '/index.html';
+            });
+            
+            // Mostra o link de admin se o usuário for admin
+            if (profile && profile.role === 'admin') {
+                const adminLink = document.getElementById('admin-link');
+                if (adminLink) {
+                    adminLink.classList.remove('hidden');
+                }
+            }
+
+            // Finalmente, esconde a tela de carregamento e mostra o conteúdo
+            loadingScreen.style.display = 'none';
+            mainContent.style.display = 'block';
+        }
+
+        // Executa a nossa função de autenticação assim que a página carrega.
+        handleAuth();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Plataforma de Clipping</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .view { display: none; } 
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
+        .notification-popup.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen font-sans">
+    
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+    
+    <div id="main-content" class="container mx-auto p-4 max-w-md" style="display: none;">
+        
+        <div id="login-view" class="view bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-1">Clipping AI</h2>
+            <p class="text-center text-gray-500 mb-6">Acesse para continuar.</p>
+            <form id="login-form" class="space-y-4">
+                <input type="email" id="login-email" placeholder="Seu e-mail" class="p-3 border rounded-md w-full" required>
+                <input type="password" id="login-password" placeholder="Sua senha" class="p-3 border rounded-md w-full" required>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700">Entrar</button>
+            </form>
+            <div class="text-center mt-4 text-sm"><p class="mt-2 text-gray-600">Não tem conta? <a href="#" id="show-register-link" class="text-blue-500 font-semibold hover:underline">Cadastre-se</a></p></div>
+        </div>
+
+        <div id="register-view" class="view bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-1">Crie sua Conta</h2>
+            <p class="text-center text-gray-500 mb-6">O seu perfil inicial será de "atendimento".</p>
+            <form id="register-form" class="space-y-4">
+                <input type="email" id="register-email" placeholder="Seu e-mail" class="p-3 border rounded-md w-full" required>
+                <input type="password" id="register-password" placeholder="Crie uma senha (mín. 6 caracteres)" class="p-3 border rounded-md w-full" required>
+                <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700">Criar Conta</button>
+            </form>
+            <div class="text-center mt-4 text-sm"><p class="text-gray-600">Já tem conta? <a href="#" id="show-login-link-from-register" class="text-blue-500 font-semibold hover:underline">Faça login</a></p></div>
+        </div>
+    </div>
+
+    <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
+
+    <!-- O shared.js é carregado ANTES do script da página -->
+    <script src="./shared.js"></script>
+    <script>
+        // Este script só roda DEPOIS que a lógica principal do shared.js já rodou.
+        document.addEventListener('DOMContentLoaded', () => {
+            const supabase = window.supabaseClient;
+            if (!supabase) return; // Proteção caso shared.js falhe
+
+            showView('login-view');
+
+            function showView(viewId) {
+                document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+                const viewToShow = document.getElementById(viewId);
+                if(viewToShow) viewToShow.style.display = 'block';
+            }
+
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const { error } = await supabase.auth.signInWithPassword({ 
+                    email: document.getElementById('login-email').value, 
+                    password: document.getElementById('login-password').value 
+                });
+                if (error) { 
+                    showNotification('E-mail ou senha inválidos.', 'error');
+                }
+                // O shared.js irá redirecionar automaticamente em caso de sucesso.
+            });
+
+            document.getElementById('register-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('register-email').value;
+                const password = document.getElementById('register-password').value;
+
+                const { data, error } = await supabase.auth.signUp({ 
+                    email: email, 
+                    password: password
+                });
+
+                if (error) { 
+                    showNotification('Falha ao criar conta: ' + error.message, 'error');
+                } else if (data.user) {
+                    // O trigger no Supabase irá criar o perfil. Não precisamos fazer aqui.
+                    showNotification('Conta criada! Verifique seu e-mail para confirmar.', 'success'); 
+                    showView('login-view'); 
+                }
+            });
+
+            document.getElementById('show-register-link').addEventListener('click', (e) => { e.preventDefault(); showView('register-view'); });
+            document.getElementById('show-login-link-from-register').addEventListener('click', (e) => { e.preventDefault(); showView('login-view'); });
+        });
+    </script>
+</body>
+</html>

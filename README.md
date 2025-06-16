@@ -1,6 +1,6 @@
 # Clipping AI 🤖✨
 
-![Clipping AI](https://i.imgur.com/example.png) 
+![Clipping AI](https://ibb.co/67NRhDYv) 
 *<p align="center">Sugestão: Substitua o link acima por um screenshot da tela de login ou do dashboard do seu app.</p>*
 
 <p align="center">

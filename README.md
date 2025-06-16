@@ -1,6 +1,6 @@
 # Clipping AI 🤖✨
 
-![Clipping AI](<blockquote class="imgur-embed-pub" lang="en" data-id="BerTan4"><a href="https://imgur.com/BerTan4">View post on imgur.com</a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>) 
+(<blockquote class="imgur-embed-pub" lang="en" data-id="BerTan4"><a href="https://imgur.com/BerTan4">View post on imgur.com</a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>) 
 *<p align="center">Sugestão: Substitua o link acima por um screenshot da tela de login ou do dashboard do seu app.</p>*
 
 <p align="center">

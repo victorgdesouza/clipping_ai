@@ -9,7 +9,7 @@
     <style>
         .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinner-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .spinner-overlay, .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; padding: 2rem; overflow-y: auto; }
         .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
         .notification-popup.show { transform: translateX(0); }
     </style>
@@ -28,22 +28,42 @@
                 <section>
                     <h2 class="text-2xl font-semibold mb-4">Adicionar Novo Clipping</h2>
                     <form id="clipping-form" class="space-y-4 bg-gray-50 p-4 rounded-lg">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <select name="cliente" id="cliente-select-form" class="p-2 border rounded-md w-full" required><option value="">Carregando clientes...</option></select>
-                            <select name="veiculo" id="veiculo-select" class="p-2 border rounded-md w-full" required><option value="">Carregando veículos...</option></select>
-                            <input type="date" name="data_publicacao" class="p-2 border rounded-md w-full text-gray-500" required>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="cliente-select-form" class="block text-sm font-medium text-gray-700">Cliente</label>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <select name="cliente" id="cliente-select-form" class="p-2 border rounded-md w-full" required><option value="">Selecione o Cliente...</option></select>
+                                    <button type="button" id="add-cliente-btn" class="flex-shrink-0 p-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 aspect-square font-bold text-lg leading-none">+</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="veiculo-select" class="block text-sm font-medium text-gray-700">Veículo</label>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <select name="veiculo" id="veiculo-select" class="p-2 border rounded-md w-full" required><option value="">Selecione o Veículo...</option></select>
+                                    <button type="button" id="add-veiculo-btn" class="flex-shrink-0 p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 aspect-square font-bold text-lg leading-none">+</button>
+                                </div>
+                            </div>
                         </div>
-                        <input type="text" name="titulo" placeholder="Título da Matéria" class="p-2 border rounded-md w-full" required>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <input type="text" name="editoria" placeholder="Editoria" class="p-2 border rounded-md w-full"><input type="text" name="jornalista" placeholder="Jornalista" class="p-2 border rounded-md w-full">
-                            <select name="classificacao" class="p-2 border rounded-md w-full" required><option value="Neutra">Classificação: Neutra</option><option value="Positiva">Positiva</option><option value="Negativa">Negativa</option></select>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr] gap-4">
+                           <div class="lg:col-span-1"><input type="text" name="titulo" placeholder="Título da Matéria" class="p-2 border rounded-md w-full h-full" required></div>
+                           <div><input type="date" name="data_publicacao" class="p-2 border rounded-md w-full text-gray-500 h-full" required></div>
+                           <div><select name="classificacao" class="p-2 border rounded-md w-full h-full" required><option value="Neutra">Classificação: Neutra</option><option value="Positiva">Positiva</option><option value="Negativa">Negativa</option></select></div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input type="text" name="editoria" placeholder="Editoria" class="p-2 border rounded-md w-full">
+                            <input type="text" name="jornalista" placeholder="Jornalista" class="p-2 border rounded-md w-full">
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
                            <input type="text" name="pagina" placeholder="Página (impresso)" class="p-2 border rounded-md w-full">
-                           <div class="flex items-center space-x-2"><input type="checkbox" name="chamada_capa" class="h-5 w-5 rounded"><label>Tem chamada na capa?</label></div>
-                           <div class="flex items-center space-x-2"><input type="checkbox" name="possui_foto" class="h-5 w-5 rounded"><label>Possui foto?</label></div>
+                           <div class="flex items-center space-x-6">
+                               <div class="flex items-center space-x-2"><input type="checkbox" name="chamada_capa" class="h-5 w-5 rounded"><label>Tem chamada na capa?</label></div>
+                               <div class="flex items-center space-x-2"><input type="checkbox" name="possui_foto" class="h-5 w-5 rounded"><label>Possui foto?</label></div>
+                           </div>
+                           <div>
+                               <label class="block text-sm font-medium text-gray-700 mb-1 sr-only">Anexar imagem do clipping (opcional)</label>
+                               <input type="file" name="clippingFile" accept="image/jpeg,image/png,application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                           </div>
                         </div>
-                        <div><label class="block text-sm font-medium text-gray-700 mb-1">Anexar imagem do clipping (opcional)</label><input type="file" name="clippingFile" accept="image/jpeg,image/png,application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/></div>
                         <input type="text" name="link" placeholder="Link da matéria online (opcional)" class="p-2 border rounded-md w-full">
                         <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700">Guardar Clipping</button>
                     </form>
@@ -55,16 +75,71 @@
             </main>
         </div>
     </div>
+    
+    <div id="add-cliente-modal" class="modal-overlay hidden"> </div>
+    <div id="add-veiculo-modal" class="modal-overlay hidden"> </div>
+    
+    <div id="edit-clipping-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+            <h2 class="text-2xl font-bold mb-6">Editar Lançamento de Clipping</h2>
+            <form id="edit-clipping-form" class="space-y-4">
+                <input type="hidden" id="edit-clipping-id">
+                <input type="hidden" id="edit-clipping-old-image-path">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="edit-cliente-select" class="block text-sm font-medium">Cliente</label><select id="edit-cliente-select" class="mt-1 p-2 border rounded-md w-full" required></select></div>
+                    <div><label for="edit-veiculo-select" class="block text-sm font-medium">Veículo</label><select id="edit-veiculo-select" class="mt-1 p-2 border rounded-md w-full" required></select></div>
+                </div>
+                <div><label for="edit-titulo" class="block text-sm font-medium">Título da Matéria</label><input type="text" id="edit-titulo" class="mt-1 p-2 border rounded-md w-full" required></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="edit-data-publicacao" class="block text-sm font-medium">Data da Publicação</label><input type="date" id="edit-data-publicacao" class="mt-1 p-2 border rounded-md w-full text-gray-500" required></div>
+                    <div><label for="edit-classificacao" class="block text-sm font-medium">Classificação</label><select id="edit-classificacao" class="mt-1 p-2 border rounded-md w-full" required><option value="Neutra">Neutra</option><option value="Positiva">Positiva</option><option value="Negativa">Negativa</option></select></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="edit-editoria" class="block text-sm font-medium">Editoria</label><input type="text" id="edit-editoria" class="mt-1 p-2 border rounded-md w-full"></div>
+                    <div><label for="edit-jornalista" class="block text-sm font-medium">Jornalista</label><input type="text" id="edit-jornalista" class="mt-1 p-2 border rounded-md w-full"></div>
+                </div>
+                <div><label for="edit-link" class="block text-sm font-medium">Link da matéria online</label><input type="text" id="edit-link" class="mt-1 p-2 border rounded-md w-full"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                   <div><label for="edit-pagina" class="block text-sm font-medium">Página (impresso)</label><input type="text" id="edit-pagina" class="mt-1 p-2 border rounded-md w-full"></div>
+                   <div class="flex items-center space-x-6 mt-6">
+                       <div class="flex items-center space-x-2"><input type="checkbox" id="edit-chamada-capa" class="h-5 w-5 rounded"><label>Tem chamada na capa?</label></div>
+                       <div class="flex items-center space-x-2"><input type="checkbox" id="edit-possui-foto" class="h-5 w-5 rounded"><label>Possui foto?</label></div>
+                   </div>
+                </div>
+                <div>
+                    <label for="edit-clippingFile" class="block text-sm font-medium">Trocar imagem do clipping (opcional)</label>
+                    <input type="file" id="edit-clippingFile" accept="image/jpeg,image/png,application/pdf" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                </div>
+
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" id="edit-clipping-cancel-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="confirmation-modal" class="modal-overlay hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm text-center">
+            <p id="confirmation-message" class="mb-4 text-lg"></p>
+            <div class="flex justify-center gap-4">
+                <button id="confirmation-cancel-btn" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">Cancelar</button>
+                <button id="confirmation-confirm-btn" class="bg-red-600 text-white font-bold py-2 px-6 rounded-md hover:bg-red-700">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
     
     <script>
-        // --- CÓDIGO AUTOSSUFICIENTE ---
         const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
         let currentUser = null;
 
+        // --- FUNÇÕES AUXILIARES ---
         function showNotification(message, type = 'success') {
             const popup = document.getElementById('notification-popup');
             if (!popup) return;
@@ -76,45 +151,83 @@
             setTimeout(() => { popup.classList.remove('show'); }, 3500);
         }
 
-        async function handleAuth() {
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = '/index.html'; return; }
-
-            currentUser = session.user;
-            document.getElementById('user-email').textContent = currentUser.email;
-            document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('main-content').style.display = 'block';
-            initializePage();
+        function showConfirmation(message) {
+            return new Promise(resolve => {
+                const modal = document.getElementById('confirmation-modal');
+                const messageEl = document.getElementById('confirmation-message');
+                const confirmBtn = document.getElementById('confirmation-confirm-btn');
+                const cancelBtn = document.getElementById('confirmation-cancel-btn');
+                if (!modal || !messageEl || !confirmBtn || !cancelBtn) { resolve(false); return; }
+                messageEl.textContent = message;
+                modal.classList.remove('hidden');
+                const confirmHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(true); };
+                const cancelHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(false); };
+                confirmBtn.addEventListener('click', confirmHandler, { once: true });
+                cancelBtn.addEventListener('click', cancelHandler, { once: true });
+                function cleanup() {
+                    confirmBtn.removeEventListener('click', confirmHandler);
+                    cancelBtn.removeEventListener('click', cancelHandler);
+                }
+            });
         }
 
         function sanitizeFilename(filename) { 
             const s = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); 
             return s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase(); 
         }
+
+        // --- INICIALIZAÇÃO ---
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
         
         function initializePage() {
             fetchMyClippings();
-            populateClientSelect();
-            populateVeiculoSelect();
+            populateClientSelect(document.getElementById('cliente-select-form'));
+            populateVeiculoSelect(document.getElementById('veiculo-select'));
+            
             document.getElementById('clipping-form').addEventListener('submit', handleAddClipping);
+            document.getElementById('edit-clipping-form').addEventListener('submit', handleUpdateClipping);
+
+            // Event listeners modais
+            const addVeiculoModal = document.getElementById('add-veiculo-modal');
+            document.getElementById('add-veiculo-btn').addEventListener('click', () => addVeiculoModal.classList.remove('hidden'));
+            document.getElementById('add-veiculo-cancel-btn').addEventListener('click', () => addVeiculoModal.classList.add('hidden'));
+            document.getElementById('add-veiculo-form').addEventListener('submit', handleAddNewVeiculo);
+
+            const addClienteModal = document.getElementById('add-cliente-modal');
+            document.getElementById('add-cliente-btn').addEventListener('click', () => addClienteModal.classList.remove('hidden'));
+            document.getElementById('add-cliente-cancel-btn').addEventListener('click', () => addClienteModal.classList.add('hidden'));
+            document.getElementById('add-cliente-form').addEventListener('submit', handleAddNewCliente);
+            
+            const editClippingModal = document.getElementById('edit-clipping-modal');
+            document.getElementById('edit-clipping-cancel-btn').addEventListener('click', () => editClippingModal.classList.add('hidden'));
         }
 
-        async function populateClientSelect() {
+        // --- POPULATE SELECTS ---
+        async function populateClientSelect(selectElement, newClientNameToSelect) {
             const { data, error } = await supabaseClient.from('clientes').select('name').order('name');
             if (error) { showNotification("Não foi possível carregar clientes.", "error"); return; }
-            const select = document.getElementById('cliente-select-form');
-            select.innerHTML = '<option value="">Selecione o Cliente...</option>';
-            data.forEach(item => select.add(new Option(item.name, item.name)));
+            selectElement.innerHTML = '<option value="">Selecione o Cliente...</option>';
+            data.forEach(item => selectElement.add(new Option(item.name, item.name)));
+            if (newClientNameToSelect) selectElement.value = newClientNameToSelect;
         }
 
-        async function populateVeiculoSelect() {
+        async function populateVeiculoSelect(selectElement, newVeiculoNameToSelect) {
             const { data, error } = await supabaseClient.from('veiculos').select('name').order('name');
             if (error) { showNotification("Não foi possível carregar veículos.", "error"); return; }
-            const select = document.getElementById('veiculo-select');
-            select.innerHTML = '<option value="">Selecione o Veículo...</option>';
-            data.forEach(item => select.add(new Option(item.name, item.name)));
+            selectElement.innerHTML = '<option value="">Selecione o Veículo...</option>';
+            data.forEach(item => selectElement.add(new Option(item.name, item.name)));
+            if (newVeiculoNameToSelect) selectElement.value = newVeiculoNameToSelect;
         }
 
+        // --- CRUD: CLIPPINGS ---
         async function fetchMyClippings(){
             const { data, error } = await supabaseClient.from('clippings').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
             const listElement = document.getElementById('clippings-list');
@@ -127,17 +240,37 @@
             }
         }
 
-        function renderClippingCard(listElement, data){
+        function renderClippingCard(listElement, clipping){
             const classificationColors = { 'Positiva': 'border-green-500', 'Negativa': 'border-red-500', 'Neutra': 'border-yellow-500' };
             const card = document.createElement('div');
-            card.className = `bg-white p-4 rounded-lg shadow-md border-l-4 ${classificationColors[data.classificacao] || 'border-gray-500'}`;
-            const date = new Date(data.data_publicacao);
+            card.className = `bg-white p-4 rounded-lg shadow-md border-l-4 ${classificationColors[clipping.classificacao] || 'border-gray-500'}`;
+            const date = new Date(clipping.data_publicacao);
             date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-            let cardHTML = `<div class="flex justify-between items-start"><div><h3 class="font-bold text-lg text-blue-800">${data.titulo}</h3><p class="text-sm text-gray-600"><strong>Cliente:</strong> ${data.cliente}</p><p class="text-sm text-gray-600"><strong>Veículo:</strong> ${data.veiculo}</p><p class="text-xs text-gray-500">Editoria: ${data.editoria || 'N/A'} | Jornalista: ${data.jornalista || 'N/A'} | Página: ${data.pagina || 'N/A'}</p><p class="text-xs text-gray-500">Capa: ${data.chamada_capa ? 'Sim' : 'Não'} | Foto: ${data.possui_foto ? 'Sim' : 'Não'}</p></div><div class="text-right flex-shrink-0 ml-4"><p class="font-semibold">${data.classificacao}</p><p class="text-xs text-gray-500">${date.toLocaleDateString('pt-BR')}</p></div></div>`;
-            if (data.image_url) cardHTML += `<div class="mt-4"><img src="${data.image_url}" alt="Clipping impresso" class="max-w-full h-auto rounded-lg"></div>`;
-            else if(data.link) cardHTML += `<div class="mt-2"><a href="${data.link}" target="_blank" class="text-blue-500 hover:underline text-sm">Ver matéria online</a></div>`;
+            
+            let cardHTML = `<div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-bold text-lg text-blue-800">${clipping.titulo}</h3>
+                    <p class="text-sm text-gray-600"><strong>Cliente:</strong> ${clipping.cliente}</p>
+                    <p class="text-sm text-gray-600"><strong>Veículo:</strong> ${clipping.veiculo}</p>
+                    <p class="text-xs text-gray-500">Data: ${date.toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div class="text-right flex-shrink-0 ml-4">
+                    <p class="font-semibold">${clipping.classificacao}</p>
+                    <div class="flex gap-3 mt-2">
+                        <button class="edit-btn text-blue-600 hover:underline text-sm font-semibold">Editar</button>
+                        <button class="delete-btn text-red-600 hover:underline text-sm font-semibold">Apagar</button>
+                    </div>
+                </div>
+            </div>`;
+            if (clipping.image_url) cardHTML += `<div class="mt-4"><p class="text-xs font-bold">Anexo:</p><a href="${clipping.image_url}" target="_blank"><img src="${clipping.image_url}" alt="Clipping" class="max-w-xs h-auto rounded-lg border"></a></div>`;
+            else if(clipping.link) cardHTML += `<div class="mt-2"><a href="${clipping.link}" target="_blank" class="text-blue-500 hover:underline text-sm">Ver matéria online</a></div>`;
+            
             card.innerHTML = cardHTML;
             listElement.appendChild(card);
+            
+            // Adiciona event listeners aos botões
+            card.querySelector('.edit-btn').addEventListener('click', () => handleOpenEditModal(clipping));
+            card.querySelector('.delete-btn').addEventListener('click', () => handleDeleteClipping(clipping.id, clipping.image_path));
         }
 
         async function handleAddClipping(e) {
@@ -184,9 +317,109 @@
                 document.getElementById('spinner').classList.add('hidden');
             }
         }
+        
+        async function handleOpenEditModal(clipping) {
+            const modal = document.getElementById('edit-clipping-modal');
+            document.getElementById('edit-clipping-id').value = clipping.id;
+            document.getElementById('edit-clipping-old-image-path').value = clipping.image_path || '';
 
+            await populateClientSelect(document.getElementById('edit-cliente-select'), clipping.cliente);
+            await populateVeiculoSelect(document.getElementById('edit-veiculo-select'), clipping.veiculo);
+
+            document.getElementById('edit-titulo').value = clipping.titulo;
+            document.getElementById('edit-data-publicacao').value = clipping.data_publicacao;
+            document.getElementById('edit-classificacao').value = clipping.classificacao;
+            document.getElementById('edit-editoria').value = clipping.editoria || '';
+            document.getElementById('edit-jornalista').value = clipping.jornalista || '';
+            document.getElementById('edit-link').value = clipping.link || '';
+            document.getElementById('edit-pagina').value = clipping.pagina || '';
+            document.getElementById('edit-chamada-capa').checked = clipping.chamada_capa;
+            document.getElementById('edit-possui-foto').checked = clipping.possui_foto;
+
+            modal.classList.remove('hidden');
+        }
+
+        async function handleUpdateClipping(e) {
+            e.preventDefault();
+            document.getElementById('spinner').classList.remove('hidden');
+
+            try {
+                const form = e.target;
+                const id = document.getElementById('edit-clipping-id').value;
+
+                const clippingUpdateData = {
+                    cliente: document.getElementById('edit-cliente-select').value,
+                    veiculo: document.getElementById('edit-veiculo-select').value,
+                    titulo: document.getElementById('edit-titulo').value.trim(),
+                    data_publicacao: document.getElementById('edit-data-publicacao').value,
+                    classificacao: document.getElementById('edit-classificacao').value,
+                    editoria: document.getElementById('edit-editoria').value.trim(),
+                    jornalista: document.getElementById('edit-jornalista').value.trim(),
+                    link: document.getElementById('edit-link').value.trim(),
+                    pagina: document.getElementById('edit-pagina').value.trim(),
+                    chamada_capa: document.getElementById('edit-chamada-capa').checked,
+                    possui_foto: document.getElementById('edit-possui-foto').checked,
+                };
+
+                const newFile = document.getElementById('edit-clippingFile').files[0];
+                if (newFile) {
+                    const oldImagePath = document.getElementById('edit-clipping-old-image-path').value;
+                    if (oldImagePath) {
+                        await supabaseClient.storage.from('clippings').remove([oldImagePath]);
+                    }
+                    const sanitizedName = sanitizeFilename(newFile.name);
+                    const newFilePath = `clippings/${currentUser.id}/${Date.now()}_${sanitizedName}`;
+                    const { error: uploadError } = await supabaseClient.storage.from('clippings').upload(newFilePath, newFile);
+                    if (uploadError) throw uploadError;
+
+                    const { data: urlData } = supabaseClient.storage.from('clippings').getPublicUrl(newFilePath);
+                    clippingUpdateData.image_url = urlData.publicUrl;
+                    clippingUpdateData.image_path = newFilePath;
+                }
+
+                const { error: updateError } = await supabaseClient.from('clippings').update(clippingUpdateData).eq('id', id);
+                if (updateError) throw updateError;
+                
+                showNotification('Clipping atualizado com sucesso!', 'success');
+                document.getElementById('edit-clipping-modal').classList.add('hidden');
+                form.reset();
+                fetchMyClippings();
+            } catch (error) {
+                showNotification(`Falha ao atualizar clipping: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+        
+        async function handleDeleteClipping(id, imagePath) {
+            const confirmed = await showConfirmation('Tem certeza que deseja apagar este lançamento? Esta ação não pode ser revertida.');
+            if (!confirmed) return;
+
+            document.getElementById('spinner').classList.remove('hidden');
+            try {
+                // Deleta o registro do banco de dados
+                const { error: deleteError } = await supabaseClient.from('clippings').delete().eq('id', id);
+                if (deleteError) throw deleteError;
+
+                // Se houver imagem, deleta do storage
+                if (imagePath) {
+                    await supabaseClient.storage.from('clippings').remove([imagePath]);
+                }
+                
+                showNotification('Clipping apagado com sucesso!', 'success');
+                fetchMyClippings();
+            } catch (error) {
+                showNotification(`Falha ao apagar clipping: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+
+        // --- CRUD: CLIENTES E VEÍCULOS (MODAIS) ---
+        async function handleAddNewCliente(e) { /* ... (código existente) ... */ }
+        async function handleAddNewVeiculo(e) { /* ... (código existente) ... */ }
+        
         handleAuth();
     </script>
 </body>
 </html>
-    

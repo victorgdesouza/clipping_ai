@@ -12,7 +12,6 @@
         .spinner-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; display: flex; justify-content: center; align-items: center; }
         .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
         .notification-popup.show { transform: translateX(0); }
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -29,7 +28,6 @@
                 <section class="mb-8">
                     <h2 class="text-2xl font-semibold mb-4">Criar Novo Usuário</h2>
                     <form id="create-user-form" class="bg-gray-50 p-4 rounded-lg">
-                        <!-- Alteração: Campos na mesma linha em telas médias e acima -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="email" id="new-user-email" placeholder="E-mail do novo usuário" class="p-2 border rounded-md w-full" required>
                             <input type="password" id="new-user-password" placeholder="Senha temporária" class="p-2 border rounded-md w-full" required>
@@ -45,8 +43,7 @@
                                 <tr>
                                     <th class="py-3 px-4 text-left">E-mail</th>
                                     <th class="py-3 px-4 text-left">Função Atual</th>
-                                    <th class="py-3 px-4 text-left">Alterar Função</th>
-                                </tr>
+                                    </tr>
                             </thead>
                             <tbody id="users-list">
                             </tbody>
@@ -58,183 +55,112 @@
     </div>
     
     <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
-    <div id="confirmation-modal" class="modal-overlay hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm text-center">
-            <p id="confirmation-message" class="mb-4 text-lg">Você tem certeza?</p>
-            <div class="flex justify-center gap-4">
-                <button id="confirmation-cancel-btn" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md hover:bg-gray-400">Cancelar</button>
-                <button id="confirmation-confirm-btn" class="bg-red-600 text-white font-bold py-2 px-6 rounded-md hover:bg-red-700">Confirmar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // --- INÍCIO DO CÓDIGO AUTOSSUFICIENTE ---
+    const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-        // 1. Definições e Funções Auxiliares
-        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
-        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+    function showNotification(message, type = 'success') {
+        const popup = document.getElementById('notification-popup');
+        const messageEl = document.getElementById('notification-message');
+        if (!popup || !messageEl) return;
+        messageEl.textContent = message;
+        popup.className = 'notification-popup show';
+        popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
+        setTimeout(() => { popup.classList.remove('show'); }, 3500);
+    }
+    
+    let currentAdminUser = null;
 
-        function showNotification(message, type = 'success') {
-            const popup = document.getElementById('notification-popup');
-            const messageEl = document.getElementById('notification-message');
-            if (!popup || !messageEl) return;
-            messageEl.textContent = message;
-            popup.className = 'notification-popup show';
-            popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
-            setTimeout(() => { popup.classList.remove('show'); }, 3500);
-        }
-
-        function showConfirmation(message) {
-            return new Promise(resolve => {
-                const modal = document.getElementById('confirmation-modal');
-                const messageEl = document.getElementById('confirmation-message');
-                const confirmBtn = document.getElementById('confirmation-confirm-btn');
-                const cancelBtn = document.getElementById('confirmation-cancel-btn');
-                if (!modal || !messageEl || !confirmBtn || !cancelBtn) { resolve(false); return; }
-                messageEl.textContent = message;
-                modal.classList.remove('hidden');
-                const confirmHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(true); };
-                const cancelHandler = () => { modal.classList.add('hidden'); cleanup(); resolve(false); };
-                confirmBtn.addEventListener('click', confirmHandler, { once: true });
-                cancelBtn.addEventListener('click', cancelHandler, { once: true });
-                function cleanup() {
-                    confirmBtn.removeEventListener('click', confirmHandler);
-                    cancelBtn.removeEventListener('click', cancelHandler);
-                }
-            });
-        }
+    async function initializeAdminPage() {
+        const loadingScreen = document.getElementById('loading-screen');
+        const mainContent = document.getElementById('main-content');
         
-        // 2. Lógica Principal da Página
-        let currentAdminUser = null;
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error || !session) {
+            window.location.href = '/index.html';
+            return;
+        }
+        currentAdminUser = session.user;
 
-        async function initializeAdminPage() {
-            const loadingScreen = document.getElementById('loading-screen');
-            const mainContent = document.getElementById('main-content');
-            
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-
-            if (error || !session) {
-                window.location.href = '/index.html';
-                return;
-            }
-
-            currentAdminUser = session.user;
-
-            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentAdminUser.id).single();
-
-            if (!profile || profile.role !== 'admin') {
-                document.body.innerHTML = '<p style="color:red; text-align:center; padding-top: 5rem;">Acesso negado. Esta página é restrita a administradores.</p>';
-                setTimeout(() => window.location.href = '/dashboard.html', 3000);
-                return;
-            }
-
-            document.getElementById('user-email').textContent = currentAdminUser.email;
-            document.getElementById('create-user-form').addEventListener('submit', handleCreateUser);
-            
-            loadingScreen.style.display = 'none';
-            mainContent.style.display = 'block';
-
-            await loadUsersList();
+        const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentAdminUser.id).single();
+        if (!profile || profile.role !== 'admin') {
+            document.body.innerHTML = '<p style="color:red; text-align:center; padding-top: 5rem;">Acesso negado. Esta página é restrita a administradores.</p>';
+            setTimeout(() => window.location.href = '/dashboard.html', 3000);
+            return;
         }
 
-        async function loadUsersList() {
-            const listElement = document.getElementById('users-list');
-            listElement.innerHTML = `<tr><td colspan="3" class="text-center p-4"><div class="loader mx-auto"></div></td></tr>`;
-            try {
-                const { data: users, error } = await supabaseClient.functions.invoke('get-users');
-                if (error) throw error;
-                if (users.error) throw new Error(users.error);
+        document.getElementById('user-email').textContent = currentAdminUser.email;
+        document.getElementById('create-user-form').addEventListener('submit', handleCreateUser);
+        
+        loadingScreen.style.display = 'none';
+        mainContent.style.display = 'block';
 
-                listElement.innerHTML = '';
-                if (users.length === 0) {
-                    listElement.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-gray-500">Nenhum usuário encontrado.</td></tr>`;
-                    return;
-                }
+        await loadUsersList();
+    }
 
-                users.forEach(user => {
-                    const userRow = document.createElement('tr');
-                    userRow.className = 'border-b hover:bg-gray-50';
-                    const isCurrentUser = user.id === currentAdminUser.id;
-                    userRow.innerHTML = `
-                        <td class="py-3 px-4">${user.email || 'E-mail indisponível'}</td>
-                        <td class="py-3 px-4 capitalize font-medium">${user.role}</td>
-                        <td class="py-3 px-4">
-                            <select data-userid="${user.id}" data-previous-role="${user.role}" class="role-select bg-white p-2 border rounded-md shadow-sm w-full" ${isCurrentUser ? 'disabled' : ''}>
-                                <option value="atendimento" ${user.role === 'atendimento' ? 'selected' : ''}>Atendimento</option>
-                                <option value="clipping" ${user.role === 'clipping' ? 'selected' : ''}>Clipping</option>
-                                <option value="chefe" ${user.role === 'chefe' ? 'selected' : ''}>Chefe</option>
-                                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-                            </select>
-                            ${isCurrentUser ? '<p class="text-xs text-gray-500 mt-1">Você não pode alterar sua própria função.</p>' : ''}
-                        </td>
-                    `;
-                    listElement.appendChild(userRow);
-                });
+    async function loadUsersList() {
+        const listElement = document.getElementById('users-list');
+        // Colspan ajustado para 2 colunas
+        listElement.innerHTML = `<tr><td colspan="2" class="text-center p-4"><div class="loader mx-auto"></div></td></tr>`;
+        try {
+            const { data: users, error } = await supabaseClient.functions.invoke('get-users');
+            if (error) throw error;
+            if (users.error) throw new Error(users.error);
+
+            listElement.innerHTML = '';
+            if (users.length === 0) {
+                // Colspan ajustado para 2 colunas
+                listElement.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-gray-500">Nenhum usuário encontrado.</td></tr>`;
+                return;
+            }
+
+            users.forEach(user => {
+                const userRow = document.createElement('tr');
+                userRow.className = 'border-b hover:bg-gray-50';
                 
-                document.querySelectorAll('.role-select').forEach(select => {
-                    select.addEventListener('change', handleRoleChange);
-                });
-
-            } catch(e) {
-                listElement.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-red-500">Erro ao carregar usuários: ${e.message}</td></tr>`;
-            }
+                // HTML da linha simplificado para remover a coluna de alteração de função
+                userRow.innerHTML = `
+                    <td class="py-3 px-4">${user.email || 'E-mail indisponível'}</td>
+                    <td class="py-3 px-4 capitalize font-medium">${user.role}</td>
+                `;
+                listElement.appendChild(userRow);
+            });
+            
+        } catch(e) {
+            // Colspan ajustado para 2 colunas
+            listElement.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Erro ao carregar usuários: ${e.message}</td></tr>`;
         }
+    }
 
-        async function handleCreateUser(e) {
-            e.preventDefault();
-            const form = e.target;
-            const email = form.querySelector('#new-user-email').value;
-            const password = form.querySelector('#new-user-password').value;
-            if (!email || !password) {
-                showNotification("Por favor, preencha e-mail e senha.", "error");
-                return;
-            }
-            document.getElementById('spinner').classList.remove('hidden');
-            try {
-                const { data, error } = await supabaseClient.functions.invoke('create-user', { body: { email, password } });
-                if (error) throw error;
-                if (data.error) throw new Error(data.error);
-                showNotification("Usuário criado com sucesso!", "success");
-                form.reset();
-                loadUsersList();
-            } catch (e) {
-                showNotification("Erro ao criar usuário: " + e.message, "error");
-            } finally {
-                document.getElementById('spinner').classList.add('hidden');
-            }
+    async function handleCreateUser(e) {
+        e.preventDefault();
+        const form = e.target;
+        const email = form.querySelector('#new-user-email').value;
+        const password = form.querySelector('#new-user-password').value;
+        if (!email || !password) {
+            showNotification("Por favor, preencha e-mail e senha.", "error");
+            return;
         }
-
-        async function handleRoleChange(e) {
-            const selectElement = e.target;
-            const userId = selectElement.dataset.userid;
-            const newRole = selectElement.value;
-            const previousRole = selectElement.dataset.previousRole;
-            const confirmed = await showConfirmation(`Tem certeza que deseja alterar a função deste usuário para "${newRole}"?`);
-            if (!confirmed) {
-                selectElement.value = previousRole;
-                return;
-            }
-            document.getElementById('spinner').classList.remove('hidden');
-            try {
-                const { data, error } = await supabaseClient.functions.invoke('update-user-role', { body: { userId, newRole } });
-                if (error) throw error;
-                if (data.error) throw new Error(data.error);
-                showNotification(data.message || 'Função atualizada com sucesso!', 'success');
-                loadUsersList();
-            } catch (e) {
-                showNotification("Erro ao alterar função: " + e.message, "error");
-                selectElement.value = previousRole;
-            } finally {
-                document.getElementById('spinner').classList.add('hidden');
-            }
+        document.getElementById('spinner').classList.remove('hidden');
+        try {
+            // A função 'create-user' deve definir o 'role' padrão como 'atendimento' no backend
+            const { data, error } = await supabaseClient.functions.invoke('create-user', { body: { email, password } });
+            if (error) throw error;
+            if (data.error) throw new Error(data.error);
+            showNotification("Usuário criado com sucesso!", "success");
+            form.reset();
+            loadUsersList(); // Recarrega a lista para mostrar o novo usuário
+        } catch (e) {
+            showNotification("Erro ao criar usuário: " + e.message, "error");
+        } finally {
+            document.getElementById('spinner').classList.add('hidden');
         }
+    }
 
-        // 3. Execução Inicial
-        initializeAdminPage();
+    // Função handleRoleChange e showConfirmation foram removidas por não serem mais necessárias
 
-        // --- FIM DO CÓDIGO AUTOSSUFICIENTE ---
-    </script>
+    initializeAdminPage();
+</script>
 </body>
 </html>

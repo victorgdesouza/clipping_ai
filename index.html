@@ -45,56 +45,87 @@
 
     <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
 
-    <!-- O shared.js é carregado ANTES do script da página -->
-    <script src="./shared.js"></script>
     <script>
-        // Este script só roda DEPOIS que a lógica principal do shared.js já rodou.
-        document.addEventListener('DOMContentLoaded', () => {
-            const supabase = window.supabaseClient;
-            if (!supabase) return; // Proteção caso shared.js falhe
+        // --- CÓDIGO AUTOSSUFICIENTE ---
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-            showView('login-view');
+        function showNotification(message, type = 'success') {
+            const popup = document.getElementById('notification-popup');
+            const messageEl = document.getElementById('notification-message');
+            if (!popup || !messageEl) return;
+            messageEl.textContent = message;
+            popup.className = 'notification-popup show';
+            popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
+            setTimeout(() => { popup.classList.remove('show'); }, 3500);
+        }
+        
+        async function handlePageLoad() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                window.location.href = '/dashboard.html';
+            } else {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                showView('login-view');
+            }
+        }
 
-            function showView(viewId) {
-                document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-                const viewToShow = document.getElementById(viewId);
-                if(viewToShow) viewToShow.style.display = 'block';
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+            const viewToShow = document.getElementById(viewId);
+            if(viewToShow) viewToShow.style.display = 'block';
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const { error } = await supabaseClient.auth.signInWithPassword({ 
+                email: document.getElementById('login-email').value, 
+                password: document.getElementById('login-password').value 
+            });
+            if (error) { 
+                showNotification('E-mail ou senha inválidos.', 'error');
+            } else {
+                window.location.href = '/dashboard.html';
+            }
+        });
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+
+            // PASSO 1: Cria o usuário no sistema de autenticação.
+            const { data, error } = await supabaseClient.auth.signUp({ 
+                email: email, 
+                password: password
+            });
+
+            if (error) { 
+                showNotification(`Falha ao criar conta: ${error.message}`, 'error');
+                return;
             }
 
-            document.getElementById('login-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const { error } = await supabase.auth.signInWithPassword({ 
-                    email: document.getElementById('login-email').value, 
-                    password: document.getElementById('login-password').value 
-                });
-                if (error) { 
-                    showNotification('E-mail ou senha inválidos.', 'error');
-                }
-                // O shared.js irá redirecionar automaticamente em caso de sucesso.
-            });
+            if (data.user) {
+                // PASSO 2: Insere o perfil na tabela 'profiles', SEM o campo de email.
+                const { error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .insert({ id: data.user.id, role: 'atendimento' });
 
-            document.getElementById('register-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('register-email').value;
-                const password = document.getElementById('register-password').value;
-
-                const { data, error } = await supabase.auth.signUp({ 
-                    email: email, 
-                    password: password
-                });
-
-                if (error) { 
-                    showNotification('Falha ao criar conta: ' + error.message, 'error');
-                } else if (data.user) {
-                    // O trigger no Supabase irá criar o perfil. Não precisamos fazer aqui.
-                    showNotification('Conta criada! Verifique seu e-mail para confirmar.', 'success'); 
+                if (profileError) {
+                    showNotification(`Database error saving new user: ${profileError.message}`, 'error');
+                } else {
+                    showNotification('Conta criada! Verifique seu e-mail para confirmar a conta.', 'success'); 
                     showView('login-view'); 
                 }
-            });
-
-            document.getElementById('show-register-link').addEventListener('click', (e) => { e.preventDefault(); showView('register-view'); });
-            document.getElementById('show-login-link-from-register').addEventListener('click', (e) => { e.preventDefault(); showView('login-view'); });
+            }
         });
+
+        document.getElementById('show-register-link').addEventListener('click', (e) => { e.preventDefault(); showView('register-view'); });
+        document.getElementById('show-login-link-from-register').addEventListener('click', (e) => { e.preventDefault(); showView('login-view'); });
+
+        handlePageLoad();
     </script>
 </body>
 </html>

@@ -5,16 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Plataforma de Clipping</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- O script do Supabase vem sempre primeiro -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.75); z-index: 9999; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
     
     <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <!-- Modal de Seleção de Modo -->
+    <div id="mode-selection-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-2xl text-center w-full max-w-lg">
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">Bem-vindo(a)!</h2>
+            <p class="text-gray-600 mb-8">Por favor, selecione o seu modo de trabalho para esta sessão.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <button data-mode="atendimento" class="mode-select-btn group block text-left p-6 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 transition-transform transform hover:scale-105">
+                    <h3 class="font-extrabold text-2xl">Modo Atendimento</h3>
+                    <p class="mt-2 text-sm opacity-90">Vou gerir e visualizar apenas os **meus clientes** e os seus respetivos clippings e atividades.</p>
+                </button>
+                <button data-mode="cadastrador" class="mode-select-btn group block text-left p-6 bg-purple-500 text-white rounded-lg shadow-lg hover:bg-purple-600 transition-transform transform hover:scale-105">
+                    <h3 class="font-extrabold text-2xl">Modo Cadastrador</h3>
+                    <p class="mt-2 text-sm opacity-90">Vou registar clippings e atividades para **qualquer cliente da agência**, não apenas os meus.</p>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
         <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
@@ -23,14 +41,17 @@
                     <h1 class="text-3xl font-bold text-gray-800">Plataforma de Clipping</h1>
                     <p id="user-email" class="text-sm text-gray-500"></p>
                 </div>
-                <button id="logout-button" class="mt-2 md:mt-0 bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700">Sair</button>
+                <div>
+                    <span id="current-mode-display" class="text-sm font-semibold mr-4 px-3 py-1 rounded-full"></span>
+                    <button id="logout-button" class="mt-2 md:mt-0 bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700">Sair</button>
+                </div>
             </header>
             <main>
                 <h2 class="text-2xl font-semibold mb-6">Acesso Rápido</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <a href="clipping.html" class="block p-6 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600"><h3 class="font-bold text-xl">Lançar Clipping</h3><p class="mt-2 text-sm">Adicionar novas matérias.</p></a>
                     <a href="atividades.html" class="block p-6 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600"><h3 class="font-bold text-xl">Atividades da Agência</h3><p class="mt-2 text-sm">Registar releases e ações.</p></a>
-                    <a href="clientes.html" class="block p-6 bg-indigo-500 text-white rounded-lg shadow-md hover:bg-indigo-600"><h3 class="font-bold text-xl">Gerir Meus Clientes</h3><p class="mt-2 text-sm">Adicionar e ver sua carteira.</p></a>
+                    <a href="clientes.html" class="block p-6 bg-indigo-500 text-white rounded-lg shadow-md hover:bg-indigo-600"><h3 class="font-bold text-xl">Gerir Clientes</h3><p class="mt-2 text-sm">Adicionar e ver clientes.</p></a>
                     <a href="veiculos.html" class="block p-6 bg-yellow-500 text-white rounded-lg shadow-md hover:bg-yellow-600"><h3 class="font-bold text-xl">Gerir Veículos</h3><p class="mt-2 text-sm">Adicionar veículos de mídia.</p></a>
                     <a href="relatorios.html" class="block p-6 bg-purple-500 text-white rounded-lg shadow-md hover:bg-purple-600"><h3 class="font-bold text-xl">Relatórios</h3><p class="mt-2 text-sm">Gerar relatórios mensais.</p></a>
                     <a id="admin-link" href="gerenciar_usuarios.html" class="hidden block p-6 bg-gray-700 text-white rounded-lg shadow-md hover:bg-gray-800"><h3 class="font-bold text-xl">Gerenciar Usuários</h3><p class="mt-2 text-sm">Definir permissões e funções.</p></a>
@@ -39,65 +60,63 @@
         </div>
     </div>
     
-    <!-- Todo o JavaScript necessário para esta página está aqui dentro -->
     <script>
-        // 1. Define as credenciais e inicializa o Cliente Supabase
         const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-        // 2. Lógica Central de Autenticação
         async function handleAuth() {
             const loadingScreen = document.getElementById('loading-screen');
             const mainContent = document.getElementById('main-content');
             
             const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
 
-            if (error) {
-                console.error("Erro ao buscar sessão:", error);
-                loadingScreen.innerHTML = '<p style="color:red;">Erro de conexão.</p>';
-                return;
-            }
-
-            if (!session) {
-                // Se não há sessão, redireciona para a página de login.
-                window.location.href = '/index.html';
-                return;
-            }
-
-            // Se chegamos aqui, o usuário está logado.
             const user = session.user;
-            
-            // Busca o perfil do usuário para saber a sua função (role)
-            const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
 
-            // Preenche os dados na tela
-            document.getElementById('user-email').textContent = user.email;
-
-            // Adiciona a funcionalidade de logout
-            document.getElementById('logout-button').addEventListener('click', async () => {
-                await supabaseClient.auth.signOut();
-                window.location.href = '/index.html';
-            });
-            
-            // Mostra o link de admin se o usuário for admin
-            if (profile && profile.role === 'admin') {
-                const adminLink = document.getElementById('admin-link');
-                if (adminLink) {
-                    adminLink.classList.remove('hidden');
+            const finalizePageLoad = () => {
+                loadingScreen.style.display = 'none';
+                mainContent.style.display = 'block';
+                document.getElementById('user-email').textContent = user.email;
+                document.getElementById('logout-button').addEventListener('click', async () => {
+                    sessionStorage.removeItem('userMode'); // Limpa o modo ao sair
+                    await supabaseClient.auth.signOut();
+                    window.location.href = '/index.html';
+                });
+                if (profile && profile.role === 'admin') {
+                    document.getElementById('admin-link').classList.remove('hidden');
+                }
+                const mode = sessionStorage.getItem('userMode');
+                const modeDisplay = document.getElementById('current-mode-display');
+                if(mode === 'atendimento'){
+                    modeDisplay.textContent = 'Modo: Atendimento';
+                    modeDisplay.className += ' bg-blue-100 text-blue-800';
+                } else {
+                    modeDisplay.textContent = 'Modo: Cadastrador';
+                    modeDisplay.className += ' bg-purple-100 text-purple-800';
                 }
             }
 
-            // Finalmente, esconde a tela de carregamento e mostra o conteúdo
-            loadingScreen.style.display = 'none';
-            mainContent.style.display = 'block';
+            // Lógica de seleção de modo
+            const userMode = sessionStorage.getItem('userMode');
+            if (profile.role === 'atendimento' && !userMode) {
+                loadingScreen.style.display = 'none';
+                document.getElementById('mode-selection-modal').classList.remove('hidden');
+                document.querySelectorAll('.mode-select-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        sessionStorage.setItem('userMode', button.dataset.mode);
+                        document.getElementById('mode-selection-modal').classList.add('hidden');
+                        finalizePageLoad();
+                    });
+                });
+            } else {
+                if(profile.role !== 'atendimento'){ // Para admins, chefes, etc., o padrão é "cadastrador"
+                    sessionStorage.setItem('userMode', 'cadastrador');
+                }
+                finalizePageLoad();
+            }
         }
-
-        // Executa a nossa função de autenticação assim que a página carrega.
         handleAuth();
     </script>
 </body>

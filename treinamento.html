@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treinamento - Clipping AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.0.18/24/solid/css/hero-icons.min.css" rel="stylesheet">
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Estilos para o slider */
+        .slide-track { transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+        .slide { flex-shrink: 0; width: 100%; height: 100%; }
+        .progress-dot { transition: all 0.3s; }
+        .progress-dot.active { background-color: #4f46e5; transform: scale(1.5); }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 lg:p-8" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Guia de Treinamento - Clipping AI</h1>
+                    <p class="text-sm text-gray-500">Seu manual completo para dominar a plataforma.</p>
+                </div>
+                <a href="dashboard.html" class="text-blue-500 hover:underline flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd" /></svg>
+                    Voltar ao Dashboard
+                </a>
+            </header>
+
+            <div class="w-full max-w-4xl mx-auto bg-gray-50 rounded-lg shadow-inner flex flex-col overflow-hidden" style="min-height: 550px;">
+                <div class="flex-grow overflow-hidden">
+                    <div id="slide-track" class="h-full flex">
+                        
+                        <div class="slide flex flex-col items-center justify-center p-8 text-center">
+                            <i class="s-academic-cap w-24 h-24 text-indigo-500"></i>
+                            <h2 class="text-4xl font-extrabold text-gray-800 mt-4">Bem-vindo(a)!</h2>
+                            <p class="text-lg text-gray-600 mt-2">Vamos aprender a usar a ferramenta que vai transformar nosso trabalho.</p>
+                            <button class="next-btn mt-8 bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 transition-transform transform hover:scale-105">Começar</button>
+                        </div>
+
+                        <div class="slide flex flex-col justify-center p-8">
+                             <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Qual problema resolvemos?</h2>
+                             <div class="grid md:grid-cols-2 gap-6">
+                                <div class="bg-red-100 border border-red-200 p-6 rounded-lg">
+                                    <h3 class="text-xl font-bold text-red-700">❌ Antes</h3>
+                                    <ul class="list-disc list-inside mt-2 text-gray-700 space-y-1">
+                                        <li>Dados em várias planilhas</li>
+                                        <li>Geração de relatórios manual e lenta</li>
+                                        <li>Sem visualização de dados</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-green-100 border border-green-200 p-6 rounded-lg">
+                                    <h3 class="text-xl font-bold text-green-700">✅ Com o Clipping AI</h3>
+                                    <ul class="list-disc list-inside mt-2 text-gray-700 space-y-1">
+                                        <li>Tudo centralizado e online</li>
+                                        <li>Relatórios gerados em minutos</li>
+                                        <li>Análises e sugestões com IA</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="slide flex flex-col justify-center p-8">
+                            <span class="font-semibold text-indigo-600">MÓDULO 1</span>
+                            <h2 class="text-3xl font-bold text-gray-800 mt-1">O Alicerce: Clientes e Veículos</h2>
+                            <p class="mt-4 text-gray-600">Antes de tudo, precisamos da base. Vá para as páginas <strong class="text-indigo-600">"Gerir Clientes"</strong> e <strong class="text-indigo-600">"Gerir Veículos"</strong> no dashboard para cadastrar as informações essenciais.</p>
+                            <img src="https://i.imgur.com/u7FvFlT.png" alt="Telas de Clientes e Veículos" class="mt-4 rounded-lg border shadow-md w-full max-w-xl mx-auto">
+                        </div>
+
+                        <div class="slide flex flex-col justify-center p-8">
+                            <span class="font-semibold text-indigo-600">MÓDULO 2</span>
+                            <h2 class="text-3xl font-bold text-gray-800 mt-1">O Dia a Dia: Lançando Tudo</h2>
+                            <p class="mt-4 text-gray-600">Na página <strong class="text-indigo-600">"Lançar Clipping"</strong>, você registrará cada matéria. Preencha todos os campos e anexe a imagem.</p>
+                            <div class="mt-4 bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                                <p class="font-bold flex items-center gap-2"><i class="s-light-bulb w-5 h-5 text-yellow-500"></i>Dica de Ouro!</p>
+                                <p class="text-gray-700 mt-1">Lançou algo errado? Sem pânico! Na lista de "Últimos Lançamentos", você pode <strong class="text-blue-600">Editar</strong> ou <strong class="text-red-600">Apagar</strong> qualquer registro.</p>
+                            </div>
+                        </div>
+
+                        <div class="slide flex flex-col justify-center items-center p-8 text-center">
+                            <span class="font-semibold text-indigo-600">MÓDULO 3</span>
+                            <h2 class="text-3xl font-bold text-gray-800 mt-1">A Mágica dos Relatórios</h2>
+                            <p class="mt-4 text-gray-600 max-w-xl">Na tela de <strong class="text-indigo-600">"Relatórios"</strong>, selecione o cliente, o mês e deixe a mágica acontecer.</p>
+                            <div class="mt-6 text-left w-full max-w-xl bg-purple-50 p-6 rounded-lg border border-purple-200">
+                                <h3 class="font-bold text-purple-800 flex items-center gap-2"><i class="s-sparkles w-5 h-5"></i>Use a Inteligência Artificial!</h3>
+                                <p class="mt-2 text-gray-700">Clique em <strong class="text-purple-600">"Sugerir com IA"</strong> para criar automaticamente os textos de "Resumo do Mês" e "Próximos Passos". Lembre-se que é uma sugestão para você editar e refinar!</p>
+                            </div>
+                        </div>
+
+                        <div class="slide flex flex-col justify-center p-8">
+                            <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Agora é a sua vez!</h2>
+                            <p class="text-center text-gray-600 mb-6">Para fixar o conhecimento, complete as seguintes tarefas na plataforma:</p>
+                            <ul class="space-y-4 text-lg">
+                                <li class="flex items-center gap-3"><span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold">1</span> Cadastrar 1 cliente fictício.</li>
+                                <li class="flex items-center gap-3"><span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold">2</span> Lançar 3 clippings para este cliente.</li>
+                                <li class="flex items-center gap-3"><span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold">3</span> Gerar um relatório em PDF e usar a IA.</li>
+                            </ul>
+                        </div>
+
+                        <div class="slide flex flex-col items-center justify-center p-8 text-center">
+                            <i class="s-check-circle w-24 h-24 text-green-500"></i>
+                            <h2 class="text-4xl font-extrabold text-gray-800 mt-4">Treinamento Concluído!</h2>
+                            <p class="text-lg text-gray-600 mt-2">Você está pronto para usar o Clipping AI. Em caso de dúvidas, pode revisitar este guia.</p>
+                            <a href="dashboard.html" class="mt-8 bg-gray-700 text-white font-bold py-3 px-8 rounded-lg hover:bg-gray-800">Voltar ao Dashboard</a>
+                        </div>
+
+                    </div>
+                </div>
+
+                <footer class="p-4 flex justify-between items-center bg-gray-100 border-t rounded-b-lg">
+                    <button class="prev-btn bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-md hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed">Anterior</button>
+                    <div id="progress-dots" class="flex gap-2"></div>
+                    <button class="next-btn bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700">Próximo</button>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function protectPage() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = '/index.html'; return; }
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', session.user.id).single();
+            if (!profile || profile.role !== 'admin') {
+                document.getElementById('loading-screen').remove();
+                document.body.innerHTML = `<div class="flex flex-col items-center justify-center min-h-screen text-center p-4"><h1 class="text-3xl font-bold text-red-600">Acesso Negado</h1><p class="text-gray-600 mt-2">Esta página é um recurso exclusivo para administradores.</p><a href="dashboard.html" class="mt-6 bg-blue-500 text-white font-bold py-2 px-6 rounded-md hover:bg-blue-600">Voltar ao Dashboard</a></div>`;
+                return false;
+            }
+            return true;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const isAdmin = await protectPage();
+            if (!isAdmin) return;
+
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+
+            const track = document.getElementById('slide-track');
+            const slides = Array.from(track.children);
+            // CORREÇÃO: Usar querySelectorAll para pegar todos os botões com a classe
+            const nextBtns = document.querySelectorAll('.next-btn');
+            const prevBtns = document.querySelectorAll('.prev-btn');
+            const dotsContainer = document.getElementById('progress-dots');
+            let currentSlide = 0;
+
+            const createDots = () => {
+                slides.forEach((_, i) => {
+                    const dot = document.createElement('button');
+                    dot.classList.add('progress-dot', 'w-3', 'h-3', 'rounded-full', 'bg-gray-300');
+                    dot.addEventListener('click', () => goToSlide(i));
+                    dotsContainer.appendChild(dot);
+                });
+            };
+
+            const updateUI = () => {
+                track.style.transform = `translateX(-${currentSlide * 100}%)`;
+                
+                prevBtns.forEach(btn => btn.disabled = currentSlide === 0);
+                nextBtns.forEach(btn => {
+                    if (currentSlide === slides.length - 1) {
+                        btn.style.display = 'none'; // Esconde o botão "Próximo" no último slide
+                    } else {
+                        btn.style.display = 'inline-flex';
+                        btn.textContent = 'Próximo';
+                    }
+                });
+
+                dotsContainer.childNodes.forEach((dot, i) => {
+                    dot.classList.toggle('active', i === currentSlide);
+                });
+            };
+            
+            const goToSlide = (n) => {
+                currentSlide = n;
+                updateUI();
+            };
+            
+            // CORREÇÃO: Adicionar o listener a TODOS os botões de "próximo"
+            nextBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (currentSlide < slides.length - 1) {
+                        currentSlide++;
+                        updateUI();
+                    }
+                });
+            });
+
+            prevBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (currentSlide > 0) {
+                        currentSlide--;
+                        updateUI();
+                    }
+                });
+            });
+
+            createDots();
+            updateUI();
+        });
+    </script>
+</body>
+</html>

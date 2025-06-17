@@ -6,6 +6,7 @@
     <title>Dashboard - Plataforma de Clipping</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.0.18/24/solid/css/hero-icons.min.css" rel="stylesheet">
     <style>
         .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -16,7 +17,6 @@
     
     <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
 
-    <!-- Modal de Seleção de Modo -->
     <div id="mode-selection-modal" class="modal-overlay hidden">
         <div class="bg-white p-8 rounded-xl shadow-2xl text-center w-full max-w-lg">
             <h2 class="text-3xl font-bold text-gray-800 mb-2">Bem-vindo(a)!</h2>
@@ -54,7 +54,17 @@
                     <a href="clientes.html" class="block p-6 bg-indigo-500 text-white rounded-lg shadow-md hover:bg-indigo-600"><h3 class="font-bold text-xl">Gerir Clientes</h3><p class="mt-2 text-sm">Adicionar e ver clientes.</p></a>
                     <a href="veiculos.html" class="block p-6 bg-yellow-500 text-white rounded-lg shadow-md hover:bg-yellow-600"><h3 class="font-bold text-xl">Gerir Veículos</h3><p class="mt-2 text-sm">Adicionar veículos de mídia.</p></a>
                     <a href="relatorios.html" class="block p-6 bg-purple-500 text-white rounded-lg shadow-md hover:bg-purple-600"><h3 class="font-bold text-xl">Relatórios</h3><p class="mt-2 text-sm">Gerar relatórios mensais.</p></a>
-                    <a id="admin-link" href="gerenciar_usuarios.html" class="hidden block p-6 bg-gray-700 text-white rounded-lg shadow-md hover:bg-gray-800"><h3 class="font-bold text-xl">Gerenciar Usuários</h3><p class="mt-2 text-sm">Definir permissões e funções.</p></a>
+                    
+                    <div id="admin-links" class="hidden contents">
+                        <a href="gerenciar_usuarios.html" class="block p-6 bg-gray-700 text-white rounded-lg shadow-md hover:bg-gray-800">
+                            <h3 class="font-bold text-xl">Gerenciar Usuários</h3>
+                            <p class="mt-2 text-sm">Definir permissões e funções.</p>
+                        </a>
+                        <a href="treinamento.html" class="block p-6 bg-teal-600 text-white rounded-lg shadow-md hover:bg-teal-700">
+                             <h3 class="font-bold text-xl">Treinamento</h3>
+                             <p class="mt-2 text-sm">Guia de uso da plataforma.</p>
+                        </a>
+                    </div>
                 </div>
             </main>
         </div>
@@ -80,13 +90,16 @@
                 mainContent.style.display = 'block';
                 document.getElementById('user-email').textContent = user.email;
                 document.getElementById('logout-button').addEventListener('click', async () => {
-                    sessionStorage.removeItem('userMode'); // Limpa o modo ao sair
+                    sessionStorage.removeItem('userMode');
                     await supabaseClient.auth.signOut();
                     window.location.href = '/index.html';
                 });
+                
                 if (profile && profile.role === 'admin') {
-                    document.getElementById('admin-link').classList.remove('hidden');
+                    // Alvo agora é o container dos links
+                    document.getElementById('admin-links').classList.remove('hidden');
                 }
+
                 const mode = sessionStorage.getItem('userMode');
                 const modeDisplay = document.getElementById('current-mode-display');
                 if(mode === 'atendimento'){
@@ -98,7 +111,6 @@
                 }
             }
 
-            // Lógica de seleção de modo
             const userMode = sessionStorage.getItem('userMode');
             if (profile.role === 'atendimento' && !userMode) {
                 loadingScreen.style.display = 'none';
@@ -111,7 +123,7 @@
                     });
                 });
             } else {
-                if(profile.role !== 'atendimento'){ // Para admins, chefes, etc., o padrão é "cadastrador"
+                if(profile.role !== 'atendimento'){
                     sessionStorage.setItem('userMode', 'cadastrador');
                 }
                 finalizePageLoad();
@@ -121,4 +133,3 @@
     </script>
 </body>
 </html>
-

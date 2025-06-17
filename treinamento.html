@@ -48,22 +48,22 @@
                         <div class="slide flex flex-col justify-center p-8">
                              <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Qual problema resolvemos?</h2>
                              <div class="grid md:grid-cols-2 gap-6">
-                                <div class="bg-red-100 border border-red-200 p-6 rounded-lg">
+                                <div class="bg-red-100 border border-red-200 p-6 rounded-lg flex flex-col">
                                     <h3 class="text-xl font-bold text-red-700">❌ Antes</h3>
-                                    <ul class="list-disc list-inside mt-2 text-gray-700 space-y-1">
+                                    <ul class="list-disc list-inside mt-2 text-gray-700 space-y-1 flex-grow">
                                         <li>Dados em várias planilhas</li>
                                         <li>Geração de relatórios manual e lenta</li>
                                         <li>Sem visualização de dados</li>
                                     </ul>
                                 </div>
-                                <div class="bg-green-100 border border-green-200 p-6 rounded-lg">
+                                <div class="bg-green-100 border border-green-200 p-6 rounded-lg flex flex-col">
                                     <h3 class="text-xl font-bold text-green-700">✅ Com o Clipping AI</h3>
                                     <ul class="list-disc list-inside mt-2 text-gray-700 space-y-1">
                                         <li>Tudo centralizado e online</li>
                                         <li>Relatórios gerados em minutos</li>
                                         <li>Análises e sugestões com IA</li>
                                     </ul>
-                                </div>
+                                    </div>
                             </div>
                         </div>
 
@@ -71,7 +71,7 @@
                             <span class="font-semibold text-indigo-600">MÓDULO 1</span>
                             <h2 class="text-3xl font-bold text-gray-800 mt-1">O Alicerce: Clientes e Veículos</h2>
                             <p class="mt-4 text-gray-600">Antes de tudo, precisamos da base. Vá para as páginas <strong class="text-indigo-600">"Gerir Clientes"</strong> e <strong class="text-indigo-600">"Gerir Veículos"</strong> no dashboard para cadastrar as informações essenciais.</p>
-                            <img src="https://i.imgur.com/u7FvFlT.png" alt="Telas de Clientes e Veículos" class="mt-4 rounded-lg border shadow-md w-full max-w-xl mx-auto">
+                            <img src="https://i.imgur.com/BerTan4.png" alt="Cards do Dashboard para Clientes e Veículos" class="mt-4 rounded-lg border shadow-md w-full max-w-xl mx-auto">
                         </div>
 
                         <div class="slide flex flex-col justify-center p-8">
@@ -95,9 +95,9 @@
                         </div>
 
                         <div class="slide flex flex-col justify-center p-8">
-                            <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Agora é a sua vez!</h2>
-                            <p class="text-center text-gray-600 mb-6">Para fixar o conhecimento, complete as seguintes tarefas na plataforma:</p>
-                            <ul class="space-y-4 text-lg">
+                             <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Agora é a sua vez!</h2>
+                             <p class="text-center text-gray-600 mb-6">Para fixar o conhecimento, complete as seguintes tarefas na plataforma:</p>
+                             <ul class="space-y-4 text-lg">
                                 <li class="flex items-center gap-3"><span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold">1</span> Cadastrar 1 cliente fictício.</li>
                                 <li class="flex items-center gap-3"><span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold">2</span> Lançar 3 clippings para este cliente.</li>
                                 <li class="flex items-center gap-3"><span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold">3</span> Gerar um relatório em PDF e usar a IA.</li>
@@ -149,7 +149,6 @@
 
             const track = document.getElementById('slide-track');
             const slides = Array.from(track.children);
-            // CORREÇÃO: Usar querySelectorAll para pegar todos os botões com a classe
             const nextBtns = document.querySelectorAll('.next-btn');
             const prevBtns = document.querySelectorAll('.prev-btn');
             const dotsContainer = document.getElementById('progress-dots');
@@ -170,10 +169,11 @@
                 prevBtns.forEach(btn => btn.disabled = currentSlide === 0);
                 nextBtns.forEach(btn => {
                     if (currentSlide === slides.length - 1) {
-                        btn.style.display = 'none'; // Esconde o botão "Próximo" no último slide
+                        btn.style.display = 'none';
                     } else {
                         btn.style.display = 'inline-flex';
                         btn.textContent = 'Próximo';
+                        if(currentSlide === 0) btn.textContent = 'Começar';
                     }
                 });
 
@@ -187,7 +187,6 @@
                 updateUI();
             };
             
-            // CORREÇÃO: Adicionar o listener a TODOS os botões de "próximo"
             nextBtns.forEach(btn => {
                 btn.addEventListener('click', () => {
                     if (currentSlide < slides.length - 1) {

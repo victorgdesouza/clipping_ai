@@ -5,41 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatórios de Desempenho</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* --- Estilos Gerais --- */
+        /* Estilos gerais e da tela (inalterados) */
         .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
         .notification-popup.show { transform: translateX(0); }
         .loader-small { border: 2px solid #f3f3f3; border-top: 2px solid #4f46e5; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
-        
-        /* --- Estilos para a TELA --- */
         .report-content-screen h2 { font-size: 1.75rem; font-weight: 700; border-bottom: 2px solid #333; padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #111827; }
         .report-content-screen .h2-first { margin-top: 0; }
         .report-content-screen h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.75rem; margin-top: 1.25rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
         .report-content-screen p, .report-content-screen li { margin-bottom: 1rem; line-height: 1.6; }
         .report-content-screen ul { list-style-position: inside; }
         .report-content-screen li { padding-left: 1rem; }
-
-        /* --- Estilos APENAS PARA O PDF --- */
-        @media print {
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .report-content { font-family: 'Helvetica', 'Arial', sans-serif; color: #333; }
-            .report-content h1 { font-size: 24pt; font-weight: bold; }
-            .report-content h2 { font-size: 18pt; font-weight: bold; color: #1a202c; border-bottom: 2px solid #4a5568; padding-bottom: 8px; margin-top: 25px; margin-bottom: 15px; }
-            .report-content .h2-first { margin-top: 0 !important; }
-            .report-content h3 { font-size: 14pt; font-weight: 600; color: #2d3748; border-bottom: 1px solid #cbd5e0; padding-bottom: 4px; margin-top: 15px; margin-bottom: 10px; }
-            .report-content .h3-no-margin-top { margin-top: 0 !important; }
-            .report-content p, .report-content li { font-size: 10pt; line-height: 1.5; margin-bottom: 5px; }
-            .report-content ul { list-style-position: outside; padding-left: 20px; }
-            .report-content .p-4 { padding: 0 !important; } 
-            .report-content .relative.h-80 { height: 18rem !important; } 
-        }
         .page-break { page-break-before: always; }
-        .pdf-no-break { break-inside: avoid; page-break-inside: avoid; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -92,17 +77,15 @@
                     </div>
                 </section>
                 
-                <div class="mt-6">
-                    <button id="generate-report-btn" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-md hover:bg-purple-700 text-lg">
-                        Gerar Relatório
-                    </button>
-                </div>
+                <section class="mt-6">
+                    <button id="generate-report-btn" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-md hover:bg-purple-700 text-lg">Gerar Relatório e Pré-visualizar</button>
+                </section>
 
                 <section id="report-editor-wrapper" class="mt-6 hidden">
                     <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
                         <h2 class="text-2xl font-bold text-gray-700">3. Pré-visualização do Relatório</h2>
                         <div class="flex gap-2">
-                            <button id="save-report-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 flex items-center gap-2">Salvar Relatório</button>
+                            <button id="save-report-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 flex items-center gap-2">Salvar Pré-visualização</button>
                             <button id="export-pdf-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 flex items-center gap-2">Exportar para PDF</button>
                         </div>
                     </div>
@@ -121,6 +104,7 @@
     <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
 
     <script>
+        // Bloco de inicialização e variáveis globais (inalterado)
         const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
@@ -132,6 +116,7 @@
         let chartInstances = {};
         let lastGeneratedData = null;
 
+        // Funções de UI como showNotification, handleAuth, etc (inalteradas)
         function showNotification(message, type = 'success') {
             const popup = document.getElementById('notification-popup');
             if (!popup) return;
@@ -158,7 +143,7 @@
             const today = new Date();
             document.getElementById('month-select-report').value = today.toISOString().substring(0, 7);
             document.getElementById('generate-report-btn').addEventListener('click', generateReport);
-            document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+            document.getElementById('export-pdf-btn').addEventListener('click', exportToPDFwithPdfMake); 
             document.getElementById('save-report-btn').addEventListener('click', saveReport);
             document.getElementById('suggest-overview-btn').addEventListener('click', suggestOverviewWithAI);
             document.getElementById('suggest-next-steps-btn').addEventListener('click', suggestNextStepsWithAI);
@@ -171,7 +156,8 @@
                 if (e.target === imageModal) imageModal.classList.add('hidden');
             });
         }
-
+        
+        // Funções de busca de dados (populateClientSelect, fetchSavedReports, loadSavedReport) - Inalteradas
         async function populateClientSelect() {
             let query = supabaseClient.from('clientes').select('name, logo_url, descricao_negocio, objetivo_principal, publico_alvo').order('name');
             if (userProfile && userProfile.role !== 'admin' && userProfile.role !== 'chefe') {
@@ -226,8 +212,6 @@
             document.getElementById('month-select-report').value = data.mes_ano;
             const editor = document.getElementById('report-editor');
             editor.innerHTML = data.report_html;
-            editor.classList.add('report-content');
-            editor.classList.remove('report-content-screen');
             document.getElementById('report-editor-wrapper').classList.remove('hidden');
             showNotification('Relatório do histórico carregado.', 'success');
         }
@@ -235,18 +219,19 @@
         async function saveReport() {
             const clienteName = document.getElementById('cliente-select-report').value;
             const monthYear = document.getElementById('month-select-report').value;
-            const reportHtml = document.getElementById('report-editor').innerHTML;
+            const reportHtml = document.getElementById('report-editor').innerHTML; 
             if (!clienteName || !monthYear || !reportHtml.trim()) { showNotification('Gere um relatório antes de salvar.', 'error'); return; }
             const btn = document.getElementById('save-report-btn');
             btn.textContent = 'Salvando...';
             btn.disabled = true;
             const { error } = await supabaseClient.from('relatorios_salvos').insert({ user_id: currentUser.id, cliente_nome: clienteName, mes_ano: monthYear, report_html: reportHtml });
             if (error) { showNotification('Erro ao salvar: ' + error.message, 'error'); } 
-            else { showNotification('Relatório salvo com sucesso!', 'success'); fetchSavedReports(clienteName); }
-            btn.textContent = 'Salvar Relatório';
+            else { showNotification('Pré-visualização salva com sucesso!', 'success'); fetchSavedReports(clienteName); }
+            btn.textContent = 'Salvar Pré-visualização';
             btn.disabled = false;
         }
 
+        // Funções de IA (suggestOverviewWithAI, suggestNextStepsWithAI) - Inalteradas
         async function suggestOverviewWithAI() {
             const clienteSelect = document.getElementById('cliente-select-report');
             const clienteName = clienteSelect.value;
@@ -322,6 +307,7 @@
             }
         }
         
+        // Função para gerar o relatório para a PRÉ-VISUALIZAÇÃO (lógica principal inalterada)
         async function generateReport() {
             const clienteSelect = document.getElementById('cliente-select-report');
             const clienteName = clienteSelect.value;
@@ -343,36 +329,46 @@
                 const [clippingsResult, activitiesResult] = await Promise.all([ clippingsQuery, activitiesQuery ]);
                 if (clippingsResult.error) throw clippingsResult.error;
                 if (activitiesResult.error) throw activitiesResult.error;
-                lastGeneratedData = { clippings: clippingsResult.data, activities: activitiesResult.data, year: parseInt(year), month: parseInt(month) };
+                
+                lastGeneratedData = {
+                    cliente: clienteName,
+                    logoUrl: selectedClientLogo,
+                    monthYear: monthYear,
+                    overview: overviewText,
+                    nextSteps: nextStepsContent,
+                    clippings: clippingsResult.data,
+                    activities: activitiesResult.data
+                };
+                
                 updateReportUI(clienteName, selectedClientLogo, monthYear, clippingsResult.data, activitiesResult.data, overviewText, nextStepsText);
                 document.getElementById('report-editor-wrapper').classList.remove('hidden');
-            } catch (error) { // ***** ESTA É A LINHA CORRIGIDA *****
+            } catch (error) {
                 showNotification("Falha ao gerar relatório: " + error.message, "error");
             } finally {
-                btn.textContent = "Gerar Relatório";
+                btn.textContent = "Gerar Relatório e Pré-visualizar";
                 btn.disabled = false;
             }
         }
         
+        // A função de atualização da UI para pré-visualização permanece a mesma
         function updateReportUI(clienteName, logoUrl, monthYear, clippings, activities, overviewText, nextStepsText) {
             const editor = document.getElementById('report-editor');
-            editor.className = 'p-8 bg-white border rounded-lg report-content-screen'; // Reset class for screen view
             const [year, month] = monthYear.split('-');
             const monthName = new Date(year, parseInt(month) - 1).toLocaleString('pt-BR', { month: 'long' });
             const highlights = calculateHighlights(clippings, activities);
             editor.innerHTML = `
-                <div id="report-cover" class="pdf-no-break text-center p-10">
+                <div id="report-cover" class="text-center p-10">
                     ${logoUrl ? `<img src="${logoUrl}" alt="Logótipo" class="max-h-24 mx-auto object-contain mb-6">` : '<div class="h-24"></div>'}
                     <h1 class="text-4xl font-bold text-gray-800">${clienteName}</h1>
                     <p class="text-xl mt-2 text-gray-600">Relatório de Atividades e Clipping - ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}</p>
                 </div>
-                <div class="page-break"><h2 class="h2-first">Overview</h2><div>${overviewText.replace(/\n/g, '<br>')}</div></div>
+                <div class="page-break"><h2>Overview</h2><div>${overviewText.replace(/\n/g, '<br>')}</div></div>
                 <div class="page-break"><h2>Destaques</h2><div id="report-highlights" class="grid grid-cols-2 gap-4 text-center"></div></div>
                 <div class="page-break">
                     <h2>Análise de Mídia</h2>
-                    <div class="pdf-no-break p-4 rounded-lg bg-gray-50 mb-8"><h3 class="h3-no-margin-top">Matérias por Classificação</h3><div class="relative h-80"><canvas id="classificationChart"></canvas></div></div>
-                    <div class="pdf-no-break p-4 rounded-lg bg-gray-50 mb-8"><h3>Top 5 Veículos</h3><div class="relative h-80"><canvas id="topVehiclesChart"></canvas></div></div>
-                    <div class="pdf-no-break p-4 rounded-lg bg-gray-50"><h3>Evolução no Mês</h3><div class="relative h-80"><canvas id="monthlyTrendChart"></canvas></div></div>
+                    <div class="p-4 rounded-lg bg-gray-50 mb-8"><h3>Matérias por Classificação</h3><div class="relative h-80"><canvas id="classificationChart"></canvas></div></div>
+                    <div class="p-4 rounded-lg bg-gray-50 mb-8"><h3>Top 5 Veículos</h3><div class="relative h-80"><canvas id="topVehiclesChart"></canvas></div></div>
+                    <div class="p-4 rounded-lg bg-gray-50"><h3>Evolução no Mês</h3><div class="relative h-80"><canvas id="monthlyTrendChart"></canvas></div></div>
                 </div>
                 <div class="page-break"><h2>Atividades Realizadas</h2><div id="report-activities-content"></div></div>
                 <div class="page-break"><h2>Clipping Detalhado</h2><div id="report-clippings-list" class="space-y-4"></div></div>
@@ -386,6 +382,7 @@
             }, 100);
         }
         
+        // Funções de renderização para a UI (calculateHighlights, renderHighlights, createCharts, etc) - Inalteradas
         function calculateHighlights(clippings, activities) {
             const clippingsCount = clippings.length;
             const positiveCount = clippings.filter(c => c.classificacao === 'Positiva').length;
@@ -398,10 +395,10 @@
             const container = document.getElementById('report-highlights');
             if (!container) return;
             container.innerHTML = `
-                <div class="bg-blue-100 p-4 rounded-lg pdf-no-break"><p class="text-3xl font-bold text-blue-800">${highlights.clippingsCount}</p><p class="text-sm text-blue-600">Matérias</p></div>
-                <div class="bg-green-100 p-4 rounded-lg pdf-no-break"><p class="text-3xl font-bold text-green-800">${highlights.positiveCount}</p><p class="text-sm text-green-600">Positivas</p></div>
-                <div class="bg-red-100 p-4 rounded-lg pdf-no-break"><p class="text-3xl font-bold text-red-800">${highlights.negativeCount}</p><p class="text-sm text-red-600">Negativas</p></div>
-                <div class="bg-purple-100 p-4 rounded-lg pdf-no-break"><p class="text-3xl font-bold text-purple-800">${highlights.activitiesCount}</p><p class="text-sm text-purple-600">Atividades</p></div>
+                <div class="bg-blue-100 p-4 rounded-lg"><p class="text-3xl font-bold text-blue-800">${highlights.clippingsCount}</p><p class="text-sm text-blue-600">Matérias</p></div>
+                <div class="bg-green-100 p-4 rounded-lg"><p class="text-3xl font-bold text-green-800">${highlights.positiveCount}</p><p class="text-sm text-green-600">Positivas</p></div>
+                <div class="bg-red-100 p-4 rounded-lg"><p class="text-3xl font-bold text-red-800">${highlights.negativeCount}</p><p class="text-sm text-red-600">Negativas</p></div>
+                <div class="bg-purple-100 p-4 rounded-lg"><p class="text-3xl font-bold text-purple-800">${highlights.activitiesCount}</p><p class="text-sm text-purple-600">Atividades</p></div>
             `;
         }
 
@@ -421,14 +418,14 @@
             if (!classCtx || !vehicleCtx || !monthlyCtx) { if (callback) { callback(); } return; }
             const classData = { Positiva: 0, Negativa: 0, Neutra: 0 };
             data.forEach(c => { if(classData.hasOwnProperty(c.classificacao)) classData[c.classificacao]++; });
-            chartInstances.classification = new Chart(classCtx, { type: 'doughnut', data: { labels: Object.keys(classData), datasets: [{ data: Object.values(classData), backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'] }] }, options: { animation: { onComplete }, responsive: true, maintainAspectRatio: true } });
+            chartInstances.classification = new Chart(classCtx, { type: 'doughnut', data: { labels: Object.keys(classData), datasets: [{ data: Object.values(classData), backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'] }] }, options: { animation: { onComplete }, responsive: true, maintainAspectRatio: false } });
             const vehicleCounts = data.reduce((acc, c) => { acc[c.veiculo] = (acc[c.veiculo] || 0) + 1; return acc; }, {});
             const topVehicles = Object.entries(vehicleCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-            chartInstances.topVehicles = new Chart(vehicleCtx, { type: 'bar', data: { labels: topVehicles.map(v => v[0]), datasets: [{ label: 'Matérias', data: topVehicles.map(v => v[1]), backgroundColor: '#8b5cf6' }] }, options: { indexAxis: 'y', animation: { onComplete }, responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } } } });
+            chartInstances.topVehicles = new Chart(vehicleCtx, { type: 'bar', data: { labels: topVehicles.map(v => v[0]), datasets: [{ label: 'Matérias', data: topVehicles.map(v => v[1]), backgroundColor: '#8b5cf6' }] }, options: { indexAxis: 'y', animation: { onComplete }, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
             const daysInMonth = new Date(year, month, 0).getDate();
             const dailyCounts = Array(daysInMonth).fill(0);
             data.forEach(c => { const day = new Date(c.data_publicacao).getUTCDate() - 1; if(day >= 0 && day < daysInMonth) dailyCounts[day]++; });
-            chartInstances.monthly = new Chart(monthlyCtx, { type: 'line', data: { labels: Array.from({length: daysInMonth}, (_, i) => i + 1), datasets: [{ label: 'Matérias por Dia', data: dailyCounts, borderColor: '#3b82f6', tension: 0.1 }] }, options: { animation: { onComplete }, responsive: true, maintainAspectRatio: true } });
+            chartInstances.monthly = new Chart(monthlyCtx, { type: 'line', data: { labels: Array.from({length: daysInMonth}, (_, i) => i + 1), datasets: [{ label: 'Matérias por Dia', data: dailyCounts, borderColor: '#3b82f6', tension: 0.1 }] }, options: { animation: { onComplete }, responsive: true, maintainAspectRatio: false } });
         }
         
         function renderActivitiesList(activities) {
@@ -451,7 +448,7 @@
             clippings.sort((a, b) => new Date(a.data_publicacao) - new Date(b.data_publicacao));
             clippings.forEach(c => {
                 const card = document.createElement('div');
-                card.className = 'p-4 border rounded-lg mb-4 pdf-no-break';
+                card.className = 'p-4 border rounded-lg mb-4';
                 const date = new Date(c.data_publicacao);
                 date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
                 card.innerHTML = `<h4 class="font-bold">${c.titulo}</h4><p class="text-sm"><strong>Veículo:</strong> ${c.veiculo} | <strong>Data:</strong> ${date.toLocaleDateString('pt-BR')} | <strong>Classificação:</strong> ${c.classificacao}</p>` +
@@ -466,41 +463,190 @@
                 });
             });
         }
+        
+        // ==================================================================
+        // FUNÇÃO PARA EXPORTAR PDF COM PDFMAKE - COM AJUSTES FINOS
+        // ==================================================================
+        async function exportToPDFwithPdfMake() {
+            if (!lastGeneratedData) {
+                showNotification("Gere um relatório primeiro para exportar.", "error");
+                return;
+            }
 
-        async function exportToPDF() {
-            const editor = document.getElementById('report-editor');
-            if (!editor.innerHTML.trim() || !lastGeneratedData) { showNotification("Gere um relatório primeiro para exportar.", "error"); return; }
             const btn = document.getElementById('export-pdf-btn');
-            btn.textContent = 'Preparando...';
+            btn.textContent = 'Preparando PDF...';
             btn.disabled = true;
 
-            editor.classList.add('report-content');
-            editor.classList.remove('report-content-screen');
-
-            const startPdfGeneration = () => {
-                const clienteName = document.getElementById('cliente-select-report').value;
-                const monthYear = document.getElementById('month-select-report').value;
+            try {
+                const { cliente, logoUrl, monthYear, overview, nextSteps, clippings, activities } = lastGeneratedData;
                 const [year, month] = monthYear.split('-');
                 const monthName = new Date(year, parseInt(month) - 1).toLocaleString('pt-BR', { month: 'long' });
-                const sanitizedClienteName = clienteName.replace(/\s+/g, '-').toLowerCase();
-                const dateStr = `${monthName}-${year}`;
-                const opt = {
-                    margin: [0.5, 0.5, 0.5, 0.5], filename: `relatorio_${sanitizedClienteName}_${dateStr}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false },
-                    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['css', 'legacy'], before: '.page-break' }
+                
+                const classificationChartImg = chartInstances.classification ? chartInstances.classification.toBase64Image() : null;
+                const topVehiclesChartImg = chartInstances.topVehicles ? chartInstances.topVehicles.toBase64Image() : null;
+                const monthlyTrendChartImg = chartInstances.monthly ? chartInstances.monthly.toBase64Image() : null;
+                
+                const highlights = calculateHighlights(clippings, activities);
+
+                const nextStepsFormatted = [];
+                if (nextSteps) {
+                    const lines = nextSteps.split('\n');
+                    lines.forEach(line => {
+                        if (line.startsWith('### ')) {
+                            nextStepsFormatted.push({ text: line.replace('### ', ''), style: 'h3', margin: [0, 10, 0, 5] });
+                        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+                             nextStepsFormatted.push({ ul: [ line.replace(/(\*|-)\s/, '') ]});
+                        } else if (line.trim() !== '') {
+                            nextStepsFormatted.push({ text: line, style: 'p' });
+                        }
+                    });
+                }
+                
+                const detailedClippingsContent = await Promise.all(
+                    clippings.map(async c => {
+                        const date = new Date(c.data_publicacao);
+                        date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+                        
+                        const clippingImage = c.image_url ? await toDataURL(c.image_url) : null;
+                        
+                        const contentStack = [
+                            { text: c.titulo, style: 'clippingTitle' },
+                            { text: `Veículo: ${c.veiculo} | Data: ${date.toLocaleDateString('pt-BR')} | Classificação: ${c.classificacao}`, style: 'clippingMeta'},
+                            c.link ? { text: 'Ver online', link: c.link, style: 'link' } : {}
+                        ];
+                        
+                        if(clippingImage) {
+                            contentStack.push({
+                                image: clippingImage,
+                                width: 400,
+                                alignment: 'center',
+                                margin: [0, 5, 0, 0]
+                            });
+                        }
+
+                        return {
+                            stack: contentStack,
+                            margin: [0, 0, 0, 15]
+                        };
+                    })
+                );
+
+                // ===== DEFINIÇÃO DO DOCUMENTO PDFMAKE =====
+                const docDefinition = {
+                    pageSize: 'A4',
+                    pageMargins: [ 40, 60, 40, 60 ],
+                    
+                    content: [
+                        // --- Capa ---
+                        {
+                            image: logoUrl ? await toDataURL(logoUrl) : null,
+                            width: 150,
+                            alignment: 'center',
+                            margin: [0, 50, 0, 20]
+                        },
+                        { text: cliente, style: 'h1', alignment: 'center' },
+                        { text: `Relatório de Atividades e Clipping`, style: 'subheader', alignment: 'center' },
+                        { text: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 100] },
+                        
+                        // --- Overview ---
+                        { text: 'Overview', style: 'h2', pageBreak: 'before' },
+                        { text: overview || 'Nenhum overview fornecido.', style: 'p' },
+                        
+                        // --- Destaques (AJUSTADO PARA SER MAIS COMPACTO) ---
+                        { text: 'Destaques', style: 'h2', margin: [0, 20, 0, 10] },
+                        {
+                            layout: 'noBorders',
+                            table: {
+                                widths: ['*', '*', '*', '*'], // 4 colunas iguais
+                                body: [
+                                    [ // Linha única com 4 itens
+                                        { text: [{ text: `${highlights.clippingsCount}\n`, style: 'highlightNumber' }, { text: 'Matérias', style: 'highlightText' }], style: 'highlightBox', fillColor: '#e0f2fe' },
+                                        { text: [{ text: `${highlights.positiveCount}\n`, style: 'highlightNumber' }, { text: 'Positivas', style: 'highlightText' }], style: 'highlightBox', fillColor: '#dcfce7' },
+                                        { text: [{ text: `${highlights.negativeCount}\n`, style: 'highlightNumber' }, { text: 'Negativas', style: 'highlightText' }], style: 'highlightBox', fillColor: '#fee2e2' },
+                                        { text: [{ text: `${highlights.activitiesCount}\n`, style: 'highlightNumber' }, { text: 'Atividades', style: 'highlightText' }], style: 'highlightBox', fillColor: '#f3e8ff' }
+                                    ]
+                                ]
+                            }
+                        },
+
+                        // --- Análise de Mídia ---
+                        { text: 'Análise de Mídia', style: 'h2', margin: [0, 20, 0, 10] },
+                        { text: 'Matérias por Classificação', style: 'h3' },
+                        classificationChartImg ? { image: classificationChartImg, width: 450, alignment: 'center' } : {text: 'Gráfico indisponível.'},
+                        { text: 'Top 5 Veículos', style: 'h3' },
+                        topVehiclesChartImg ? { image: topVehiclesChartImg, width: 450, alignment: 'center' } : {text: 'Gráfico indisponível.'},
+                        { text: 'Evolução no Mês', style: 'h3' },
+                        monthlyTrendChartImg ? { image: monthlyTrendChartImg, width: 450, alignment: 'center' } : {text: 'Gráfico indisponível.'},
+
+                        // --- Atividades Realizadas ---
+                        { text: 'Atividades Realizadas', style: 'h2', pageBreak: 'before' },
+                        activities.length > 0 ? {
+                            ul: activities.map(a => {
+                                const date = new Date(a.data_atividade);
+                                date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+                                return { text: [ { text: `[${date.toLocaleDateString('pt-BR')}] ${a.tipo}: `, bold: true }, `${a.titulo}`]};
+                            })
+                        } : { text: 'Nenhuma atividade registrada no período.', style: 'p', italics: true },
+                        
+                        // --- Clipping Detalhado (com imagens) ---
+                        { text: 'Clipping Detalhado', style: 'h2', pageBreak: 'before' },
+                        ...detailedClippingsContent,
+                        
+                        // --- Próximos Passos ---
+                        { text: 'Próximos Passos', style: 'h2', pageBreak: 'before' },
+                        ...nextStepsFormatted,
+                    ],
+
+                    // --- Estilos do Documento ---
+                    styles: {
+                        h1: { fontSize: 24, bold: true, margin: [0, 0, 0, 10] },
+                        h2: { fontSize: 18, bold: true, margin: [0, 15, 0, 10], color: '#111827', border: [false, false, false, true] },
+                        h3: { fontSize: 14, bold: true, margin: [0, 15, 0, 5], color: '#374151' },
+                        subheader: { fontSize: 14, margin: [0, 2, 0, 2], color: '#4b5563' },
+                        p: { fontSize: 10, lineHeight: 1.4 },
+                        link: { fontSize: 10, color: 'blue', decoration: 'underline' },
+                        clippingTitle: { fontSize: 11, bold: true, margin: [0, 0, 0, 2] },
+                        clippingMeta: { fontSize: 9, italics: true, color: '#4b5563' },
+                        highlightBox: { margin: 5, alignment: 'center' },
+                        // AJUSTADO O TAMANHO DA FONTE DOS NÚMEROS
+                        highlightNumber: { fontSize: 22, bold: true, color: '#1e3a8a' },
+                        highlightText: { fontSize: 9, color: '#6b7280' },
+                    },
+
+                    defaultStyle: {
+                        font: 'Roboto',
+                        fontSize: 10,
+                        lineHeight: 1.15
+                    }
                 };
-                html2pdf().set(opt).from(editor).save().finally(() => {
-                    btn.textContent = 'Exportar para PDF';
-                    btn.disabled = false;
-                    editor.classList.add('report-content-screen');
-                    editor.classList.remove('report-content');
-                });
-            };
-            
-            createCharts(lastGeneratedData.clippings, lastGeneratedData.year, lastGeneratedData.month, startPdfGeneration);
+                
+                pdfMake.createPdf(docDefinition).download(`relatorio_${cliente.replace(/\s+/g, '-')}_${monthYear}.pdf`);
+
+            } catch (error) {
+                console.error("Erro ao gerar PDF com pdfmake:", error);
+                showNotification("Erro ao gerar o PDF. Verifique o console para detalhes.", "error");
+            } finally {
+                btn.textContent = 'Exportar para PDF';
+                btn.disabled = false;
+            }
         }
 
+        async function toDataURL(url) {
+            try {
+                const response = await fetch(url, { cache: 'reload' });
+                const blob = await response.blob();
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            } catch (e) {
+                console.warn(`Não foi possível carregar a imagem da URL: ${url}. A imagem não será incluída.`, e);
+                return null;
+            }
+        }
+        
         handleAuth();
     </script>
 </body>

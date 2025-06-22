@@ -12,6 +12,10 @@
         .spinner-overlay, .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; padding: 2rem; overflow-y: auto; }
         .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
         .notification-popup.show { transform: translateX(0); }
+        .highlight {
+            transition: background-color 0.5s ease-in-out;
+            background-color: #fef9c3 !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -69,15 +73,41 @@
                     </form>
                 </section>
                 <section class="mt-10">
-                    <h2 class="text-2xl font-semibold mb-4">Últimos Lançamentos de Clipping (Seus)</h2>
+                    <h2 id="clipping-list-title" class="text-2xl font-semibold mb-4">Últimos Lançamentos</h2>
                     <div id="clippings-list" class="space-y-3"></div>
                 </section>
             </main>
         </div>
     </div>
     
-    <div id="add-cliente-modal" class="modal-overlay hidden"> </div>
-    <div id="add-veiculo-modal" class="modal-overlay hidden"> </div>
+    <div id="add-cliente-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-lg">
+            <h2 class="text-2xl font-bold mb-4">Adicionar Novo Cliente</h2>
+            <form id="add-cliente-form" class="space-y-4">
+                <input type="text" id="new-cliente-name" placeholder="Nome do cliente" class="p-2 border rounded-md w-full" required>
+                <textarea id="new-cliente-descricao" placeholder="Descrição do Negócio (Ex: Plataforma de cursos online...)" class="p-2 border rounded-md w-full" rows="2"></textarea>
+                <textarea id="new-cliente-objetivo" placeholder="Objetivo Principal (Ex: Aumentar vendas, fortalecer marca...)" class="p-2 border rounded-md w-full" rows="2"></textarea>
+                <textarea id="new-cliente-publico" placeholder="Público-Alvo (Ex: Diretores de RH, jovens de 18-25 anos...)" class="p-2 border rounded-md w-full" rows="2"></textarea>
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" id="add-cliente-cancel-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="bg-indigo-500 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-600">Salvar Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="add-veiculo-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-4">Adicionar Novo Veículo</h2>
+            <form id="add-veiculo-form" class="space-y-4">
+                <input type="text" id="new-veiculo-name" placeholder="Nome do veículo" class="p-2 border rounded-md w-full" required>
+                <input type="url" id="new-veiculo-website" placeholder="https://www.sitedoveiculo.com (opcional)" class="p-2 border rounded-md w-full">
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" id="add-veiculo-cancel-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600">Salvar Veículo</button>
+                </div>
+            </form>
+        </div>
+    </div>
     
     <div id="edit-clipping-modal" class="modal-overlay hidden">
         <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
@@ -85,7 +115,6 @@
             <form id="edit-clipping-form" class="space-y-4">
                 <input type="hidden" id="edit-clipping-id">
                 <input type="hidden" id="edit-clipping-old-image-path">
-                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div><label for="edit-cliente-select" class="block text-sm font-medium">Cliente</label><select id="edit-cliente-select" class="mt-1 p-2 border rounded-md w-full" required></select></div>
                     <div><label for="edit-veiculo-select" class="block text-sm font-medium">Veículo</label><select id="edit-veiculo-select" class="mt-1 p-2 border rounded-md w-full" required></select></div>
@@ -136,16 +165,13 @@
         const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-
         let currentUser = null;
+        let userProfile = null; // Adicionado para guardar o perfil
 
-        // --- FUNÇÕES AUXILIARES ---
         function showNotification(message, type = 'success') {
             const popup = document.getElementById('notification-popup');
             if (!popup) return;
-            const messageEl = popup.querySelector('p');
-            if (!messageEl) return;
-            messageEl.textContent = message;
+            popup.querySelector('p').textContent = message;
             popup.className = 'notification-popup show';
             popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
             setTimeout(() => { popup.classList.remove('show'); }, 3500);
@@ -176,11 +202,12 @@
             return s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase(); 
         }
 
-        // --- INICIALIZAÇÃO ---
         async function handleAuth() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error || !session) { window.location.href = '/index.html'; return; }
             currentUser = session.user;
+            const {data: profile} = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+            userProfile = profile;
             document.getElementById('user-email').textContent = currentUser.email;
             document.getElementById('loading-screen').style.display = 'none';
             document.getElementById('main-content').style.display = 'block';
@@ -195,7 +222,6 @@
             document.getElementById('clipping-form').addEventListener('submit', handleAddClipping);
             document.getElementById('edit-clipping-form').addEventListener('submit', handleUpdateClipping);
 
-            // Event listeners modais
             const addVeiculoModal = document.getElementById('add-veiculo-modal');
             document.getElementById('add-veiculo-btn').addEventListener('click', () => addVeiculoModal.classList.remove('hidden'));
             document.getElementById('add-veiculo-cancel-btn').addEventListener('click', () => addVeiculoModal.classList.add('hidden'));
@@ -210,7 +236,6 @@
             document.getElementById('edit-clipping-cancel-btn').addEventListener('click', () => editClippingModal.classList.add('hidden'));
         }
 
-        // --- POPULATE SELECTS ---
         async function populateClientSelect(selectElement, newClientNameToSelect) {
             const { data, error } = await supabaseClient.from('clientes').select('name').order('name');
             if (error) { showNotification("Não foi possível carregar clientes.", "error"); return; }
@@ -227,48 +252,79 @@
             if (newVeiculoNameToSelect) selectElement.value = newVeiculoNameToSelect;
         }
 
-        // --- CRUD: CLIPPINGS ---
         async function fetchMyClippings(){
-            const { data, error } = await supabaseClient.from('clippings').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
             const listElement = document.getElementById('clippings-list');
+            const listTitle = document.getElementById('clipping-list-title');
+            listElement.innerHTML = '<div class="loader mx-auto"></div>';
+            
+            let query = supabaseClient.from('clippings').select('*');
+
+            // LÓGICA CORRIGIDA AQUI
+            if (userProfile && (userProfile.role === 'admin' || userProfile.role === 'chefe')) {
+                // Admins e chefes veem tudo
+                query = query.order('created_at', { ascending: false });
+                listTitle.textContent = "Todos os Lançamentos de Clipping";
+            } else {
+                // Atendimentos veem apenas os seus
+                query = query.eq('user_id', currentUser.id).order('created_at', { ascending: false });
+                listTitle.textContent = "Últimos Lançamentos de Clipping (Seus)";
+            }
+
+            const { data, error } = await query;
+            
             listElement.innerHTML = ''; 
             if (error) { showNotification("Erro ao carregar clippings.", "error"); return; }
             if (!data || data.length === 0) { 
-                listElement.innerHTML = '<p class="text-sm text-gray-500 italic text-center">Nenhum clipping lançado por você ainda.</p>'; 
+                listElement.innerHTML = '<p class="text-sm text-gray-500 italic text-center">Nenhum clipping lançado.</p>'; 
             } else { 
                 data.forEach(clipping => renderClippingCard(listElement, clipping)); 
             }
+            highlightItemFromUrl();
         }
 
         function renderClippingCard(listElement, clipping){
             const classificationColors = { 'Positiva': 'border-green-500', 'Negativa': 'border-red-500', 'Neutra': 'border-yellow-500' };
             const card = document.createElement('div');
+            card.id = `clipping-${clipping.id}`;
             card.className = `bg-white p-4 rounded-lg shadow-md border-l-4 ${classificationColors[clipping.classificacao] || 'border-gray-500'}`;
             const date = new Date(clipping.data_publicacao);
             date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
             
-            let cardHTML = `<div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-bold text-lg text-blue-800">${clipping.titulo}</h3>
-                    <p class="text-sm text-gray-600"><strong>Cliente:</strong> ${clipping.cliente}</p>
-                    <p class="text-sm text-gray-600"><strong>Veículo:</strong> ${clipping.veiculo}</p>
-                    <p class="text-xs text-gray-500">Data: ${date.toLocaleDateString('pt-BR')}</p>
-                </div>
-                <div class="text-right flex-shrink-0 ml-4">
-                    <p class="font-semibold">${clipping.classificacao}</p>
-                    <div class="flex gap-3 mt-2">
-                        <button class="edit-btn text-blue-600 hover:underline text-sm font-semibold">Editar</button>
-                        <button class="delete-btn text-red-600 hover:underline text-sm font-semibold">Apagar</button>
+            let cardHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-bold text-lg text-blue-800">${clipping.titulo}</h3>
+                        <p class="text-sm text-gray-600"><strong>Cliente:</strong> ${clipping.cliente}</p>
+                        <p class="text-sm text-gray-600"><strong>Veículo:</strong> ${clipping.veiculo}</p>
+                        <p class="text-xs text-gray-500">Data: ${date.toLocaleDateString('pt-BR')}</p>
                     </div>
-                </div>
-            </div>`;
-            if (clipping.image_url) cardHTML += `<div class="mt-4"><p class="text-xs font-bold">Anexo:</p><a href="${clipping.image_url}" target="_blank"><img src="${clipping.image_url}" alt="Clipping" class="max-w-xs h-auto rounded-lg border"></a></div>`;
-            else if(clipping.link) cardHTML += `<div class="mt-2"><a href="${clipping.link}" target="_blank" class="text-blue-500 hover:underline text-sm">Ver matéria online</a></div>`;
+                    <div class="text-right flex-shrink-0 ml-4">
+                        <p class="font-semibold">${clipping.classificacao}</p>
+                        <div class="flex gap-3 mt-2">
+                            <button class="edit-btn text-blue-600 hover:underline text-sm font-semibold">Editar</button>
+                            <button class="delete-btn text-red-600 hover:underline text-sm font-semibold">Apagar</button>
+                        </div>
+                    </div>
+                </div>`;
+            
+            if (clipping.image_url) {
+                cardHTML += `
+                    <div class="mt-4">
+                        <p class="text-xs font-bold">Anexo:</p>
+                        <a href="${clipping.image_url}" target="_blank">
+                            <img src="${clipping.image_url}" alt="Clipping" class="max-w-xs h-auto rounded-lg border">
+                        </a>
+                    </div>`;
+            } else if (clipping.link) {
+                cardHTML += `
+                    <div class="mt-2">
+                        <a href="${clipping.link}" target="_blank" class="text-blue-500 hover:underline text-sm">Ver matéria online</a>
+                    </div>`;
+            }
             
             card.innerHTML = cardHTML;
             listElement.appendChild(card);
             
-            // Adiciona event listeners aos botões
             card.querySelector('.edit-btn').addEventListener('click', () => handleOpenEditModal(clipping));
             card.querySelector('.delete-btn').addEventListener('click', () => handleDeleteClipping(clipping.id, clipping.image_path));
         }
@@ -342,11 +398,8 @@
         async function handleUpdateClipping(e) {
             e.preventDefault();
             document.getElementById('spinner').classList.remove('hidden');
-
             try {
-                const form = e.target;
                 const id = document.getElementById('edit-clipping-id').value;
-
                 const clippingUpdateData = {
                     cliente: document.getElementById('edit-cliente-select').value,
                     veiculo: document.getElementById('edit-veiculo-select').value,
@@ -360,7 +413,6 @@
                     chamada_capa: document.getElementById('edit-chamada-capa').checked,
                     possui_foto: document.getElementById('edit-possui-foto').checked,
                 };
-
                 const newFile = document.getElementById('edit-clippingFile').files[0];
                 if (newFile) {
                     const oldImagePath = document.getElementById('edit-clipping-old-image-path').value;
@@ -371,18 +423,16 @@
                     const newFilePath = `clippings/${currentUser.id}/${Date.now()}_${sanitizedName}`;
                     const { error: uploadError } = await supabaseClient.storage.from('clippings').upload(newFilePath, newFile);
                     if (uploadError) throw uploadError;
-
                     const { data: urlData } = supabaseClient.storage.from('clippings').getPublicUrl(newFilePath);
                     clippingUpdateData.image_url = urlData.publicUrl;
                     clippingUpdateData.image_path = newFilePath;
                 }
-
                 const { error: updateError } = await supabaseClient.from('clippings').update(clippingUpdateData).eq('id', id);
                 if (updateError) throw updateError;
                 
                 showNotification('Clipping atualizado com sucesso!', 'success');
                 document.getElementById('edit-clipping-modal').classList.add('hidden');
-                form.reset();
+                document.getElementById('edit-clipping-form').reset();
                 fetchMyClippings();
             } catch (error) {
                 showNotification(`Falha ao atualizar clipping: ${error.message}`, 'error');
@@ -394,18 +444,13 @@
         async function handleDeleteClipping(id, imagePath) {
             const confirmed = await showConfirmation('Tem certeza que deseja apagar este lançamento? Esta ação não pode ser revertida.');
             if (!confirmed) return;
-
             document.getElementById('spinner').classList.remove('hidden');
             try {
-                // Deleta o registro do banco de dados
                 const { error: deleteError } = await supabaseClient.from('clippings').delete().eq('id', id);
                 if (deleteError) throw deleteError;
-
-                // Se houver imagem, deleta do storage
                 if (imagePath) {
                     await supabaseClient.storage.from('clippings').remove([imagePath]);
                 }
-                
                 showNotification('Clipping apagado com sucesso!', 'success');
                 fetchMyClippings();
             } catch (error) {
@@ -415,9 +460,56 @@
             }
         }
 
-        // --- CRUD: CLIENTES E VEÍCULOS (MODAIS) ---
-        async function handleAddNewCliente(e) { /* ... (código existente) ... */ }
-        async function handleAddNewVeiculo(e) { /* ... (código existente) ... */ }
+        async function handleAddNewCliente(e) {
+            e.preventDefault();
+            const form = e.target;
+            const name = form.querySelector('#new-cliente-name').value.trim();
+            if (!name) { showNotification("O nome do cliente é obrigatório.", "error"); return; }
+            try {
+                const clientData = { name, user_id: currentUser.id, is_public: false, descricao_negocio: form.querySelector('#new-cliente-descricao').value.trim(), objetivo_principal: form.querySelector('#new-cliente-objetivo').value.trim(), publico_alvo: form.querySelector('#new-cliente-publico').value.trim() };
+                const { error } = await supabaseClient.from('clientes').insert(clientData);
+                if (error) throw error;
+                showNotification("Cliente adicionado com sucesso!", "success");
+                form.reset();
+                document.getElementById('add-cliente-modal').classList.add('hidden');
+                await populateClientSelect(document.getElementById('cliente-select-form'), name);
+            } catch (error) {
+                if (error.code === '23505') { showNotification('Erro: Já existe um cliente com este nome.', 'error'); }
+                else { showNotification(`Não foi possível guardar o cliente: ${error.message}`, 'error'); }
+            }
+        }
+        async function handleAddNewVeiculo(e) {
+            e.preventDefault();
+            const form = e.target;
+            const name = form.querySelector('#new-veiculo-name').value.trim();
+            const website = form.querySelector('#new-veiculo-website').value.trim();
+            if (!name) { showNotification("O nome do veículo é obrigatório.", "error"); return; }
+            try {
+                const { error } = await supabaseClient.from('veiculos').insert({ name, website });
+                if (error) throw error;
+                showNotification("Veículo adicionado com sucesso!", "success");
+                form.reset();
+                document.getElementById('add-veiculo-modal').classList.add('hidden');
+                await populateVeiculoSelect(document.getElementById('veiculo-select'), name);
+            } catch (error) {
+                if (error.code === '23505') { showNotification('Erro: Já existe um veículo com este nome.', 'error'); }
+                else { showNotification(`Não foi possível guardar o veículo: ${error.message}`, 'error'); }
+            }
+        }
+
+        function highlightItemFromUrl() {
+            if (window.location.hash) {
+                const elementId = window.location.hash.substring(1);
+                const elementToHighlight = document.getElementById(elementId);
+                if (elementToHighlight) {
+                    elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    elementToHighlight.classList.add('highlight');
+                    setTimeout(() => {
+                        elementToHighlight.classList.remove('highlight');
+                    }, 2500);
+                }
+            }
+        }
         
         handleAuth();
     </script>

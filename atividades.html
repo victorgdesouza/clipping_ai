@@ -12,6 +12,12 @@
         .spinner-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; display: flex; justify-content: center; align-items: center; }
         .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
         .notification-popup.show { transform: translateX(0); }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 5000; }
+        /* NOVO ESTILO PARA O DESTAQUE */
+        .highlight {
+            transition: background-color 0.5s ease-in-out;
+            background-color: #fef9c3 !important; /* Amarelo claro */
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -49,14 +55,36 @@
             </main>
         </div>
     </div>
+    
+    <div id="edit-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl">
+            <h2 class="text-2xl font-bold mb-4">Editar Atividade</h2>
+            <form id="edit-activity-form" class="space-y-4">
+                <input type="hidden" id="edit-activity-id">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <select id="edit-cliente" class="p-2 border rounded-md w-full" required></select>
+                    <select id="edit-tipo" class="p-2 border rounded-md w-full" required>
+                        <option value="Release">Release</option><option value="Nota">Nota</option><option value="Artigo">Artigo</option><option value="Post em Rede Social">Post em Rede Social</option><option value="Vídeo">Vídeo</option><option value="Outro">Outro</option>
+                    </select>
+                    <input type="date" id="edit-data" class="p-2 border rounded-md w-full text-gray-500" required>
+                </div>
+                <input type="text" id="edit-titulo" placeholder="Título da Atividade" class="p-2 border rounded-md w-full" required>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" id="cancel-edit-btn" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-400">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
 
     <script>
-        // --- CÓDIGO AUTOSSUFICIENTE ---
         const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
         let currentUser = null;
+        let allClients = [];
 
         function showNotification(message, type = 'success') {
             const popup = document.getElementById('notification-popup');
@@ -85,18 +113,25 @@
         }
 
         function initializePage() {
-            fetchMyActivities();
             populateAllClientsSelect();
+            fetchMyActivities();
             document.getElementById('activity-form').addEventListener('submit', handleAddActivity);
+            document.getElementById('edit-activity-form').addEventListener('submit', handleUpdateActivity);
+            document.getElementById('cancel-edit-btn').addEventListener('click', () => document.getElementById('edit-modal').classList.add('hidden'));
         }
 
         async function populateAllClientsSelect() {
-            const { data: clientes, error } = await supabaseClient.from('clientes').select('name').order('name');
+            const { data, error } = await supabaseClient.from('clientes').select('name').order('name');
             if (error) { showNotification("Não foi possível carregar a lista de clientes.", "error"); return; }
-            const selectElement = document.getElementById('cliente-select-activity');
-            selectElement.innerHTML = '<option value="">Selecione o Cliente...</option>';
-            clientes.forEach(cliente => {
-                selectElement.add(new Option(cliente.name, cliente.name));
+            allClients = data;
+            const createSelect = document.getElementById('cliente-select-activity');
+            const editSelect = document.getElementById('edit-cliente');
+            
+            [createSelect, editSelect].forEach(select => {
+                select.innerHTML = '<option value="">Selecione o Cliente...</option>';
+                allClients.forEach(client => {
+                    select.add(new Option(client.name, client.name));
+                });
             });
         }
 
@@ -110,19 +145,45 @@
             } else {
                 atividades.forEach(atividade => renderActivityCard(listElement, atividade));
             }
+            // CHAMA A FUNÇÃO DE DESTAQUE APÓS RENDERIZAR
+            highlightItemFromUrl();
         }
-
-        function renderActivityCard(listElement, data){
+        
+        function renderActivityCard(listElement, activity){
             const card = document.createElement('div');
+            card.id = `activity-${activity.id}`;
             card.className = `bg-white p-4 rounded-lg shadow-md border-l-4 border-green-500`;
-            const date = new Date(data.data_atividade);
+            const date = new Date(activity.data_atividade);
             date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-            let cardHTML = `<div class="flex justify-between items-start"><div><span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">${data.tipo}</span><h3 class="font-bold text-lg text-gray-800 mt-2">${data.titulo}</h3><p class="text-sm text-gray-600"><strong>Cliente:</strong> ${data.cliente}</p></div><div class="text-right flex-shrink-0 ml-4"><p class="text-xs text-gray-500">${date.toLocaleDateString('pt-BR')}</p></div></div>`;
-            if (data.file_url) {
-                cardHTML += `<div class="mt-2"><a href="${data.file_url}" target="_blank" class="text-blue-500 hover:underline text-sm">Baixar/Ver arquivo</a></div>`;
+            
+            let cardHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">${activity.tipo}</span>
+                        <h3 class="font-bold text-lg text-gray-800 mt-2">${activity.titulo}</h3>
+                        <p class="text-sm text-gray-600"><strong>Cliente:</strong> ${activity.cliente}</p>
+                    </div>
+                    <div class="text-right flex-shrink-0 ml-4">
+                        <p class="text-xs text-gray-500">${date.toLocaleDateString('pt-BR')}</p>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center mt-3">
+                    <div>`;
+            if (activity.file_url) {
+                cardHTML += `<a href="${activity.file_url}" target="_blank" class="text-blue-500 hover:underline text-sm">Baixar/Ver arquivo</a>`;
             }
+            cardHTML += `</div>
+                    <div class="flex gap-2">
+                        <button class="edit-btn text-sm text-blue-600 hover:underline">Editar</button>
+                        <button class="delete-btn text-sm text-red-600 hover:underline">Excluir</button>
+                    </div>
+                </div>`;
+
             card.innerHTML = cardHTML;
             listElement.appendChild(card);
+
+            card.querySelector('.edit-btn').addEventListener('click', () => openEditModal(activity));
+            card.querySelector('.delete-btn').addEventListener('click', () => deleteActivity(activity));
         }
 
         async function handleAddActivity(e) {
@@ -159,6 +220,82 @@
                 showNotification(`Falha ao salvar atividade: ${error.message}`, 'error');
             } finally {
                 document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+        
+        function openEditModal(activity) {
+            document.getElementById('edit-activity-id').value = activity.id;
+            document.getElementById('edit-cliente').value = activity.cliente;
+            document.getElementById('edit-tipo').value = activity.tipo;
+            document.getElementById('edit-data').value = activity.data_atividade;
+            document.getElementById('edit-titulo').value = activity.titulo;
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        async function handleUpdateActivity(e) {
+            e.preventDefault();
+            document.getElementById('spinner').classList.remove('hidden');
+            const activityId = document.getElementById('edit-activity-id').value;
+            const updatedData = {
+                cliente: document.getElementById('edit-cliente').value,
+                tipo: document.getElementById('edit-tipo').value,
+                data_atividade: document.getElementById('edit-data').value,
+                titulo: document.getElementById('edit-titulo').value.trim()
+            };
+
+            try {
+                const { error } = await supabaseClient.from('atividades').update(updatedData).eq('id', activityId);
+                if (error) throw error;
+                showNotification('Atividade atualizada com sucesso!', 'success');
+                document.getElementById('edit-modal').classList.add('hidden');
+                fetchMyActivities();
+            } catch (error) {
+                showNotification(`Falha ao atualizar: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+
+        async function deleteActivity(activity) {
+            if (!confirm(`Tem certeza que deseja excluir a atividade "${activity.titulo}"? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+            document.getElementById('spinner').classList.remove('hidden');
+            try {
+                if (activity.file_path) {
+                    const { error: storageError } = await supabaseClient.storage.from('atividades').remove([activity.file_path]);
+                    if (storageError) {
+                        console.warn('Falha ao remover arquivo do storage, mas continuando:', storageError.message);
+                    }
+                }
+                const { error: dbError } = await supabaseClient.from('atividades').delete().eq('id', activity.id);
+                if (dbError) throw dbError;
+
+                showNotification('Atividade excluída com sucesso!', 'success');
+                document.getElementById(`activity-${activity.id}`).remove();
+
+            } catch (error) {
+                showNotification(`Falha ao excluir: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+
+        // --- NOVA FUNÇÃO DE DESTAQUE ---
+        function highlightItemFromUrl() {
+            if (window.location.hash) {
+                const elementId = window.location.hash.substring(1);
+                const elementToHighlight = document.getElementById(elementId);
+                if (elementToHighlight) {
+                    // Rola a tela até o elemento
+                    elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Adiciona a classe de destaque
+                    elementToHighlight.classList.add('highlight');
+                    // Remove a classe após alguns segundos
+                    setTimeout(() => {
+                        elementToHighlight.classList.remove('highlight');
+                    }, 2500); // 2.5 segundos de destaque
+                }
             }
         }
 

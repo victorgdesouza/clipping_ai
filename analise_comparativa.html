@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise Comparativa de Relatórios</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .kpi-delta.positive { color: #16a34a; }
+        .kpi-delta.negative { color: #dc2626; }
+        .kpi-delta.neutral { color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Análise Comparativa</h1>
+                    <p id="user-email" class="text-sm text-gray-500"></p>
+                </div>
+                <a id="back-link" href="dashboard.html" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Voltar</a>
+            </header>
+            <main>
+                <section class="bg-gray-50 p-4 rounded-lg">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="client-select" class="block text-sm font-medium text-gray-700">1. Selecione o Cliente</label>
+                            <select id="client-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></select>
+                        </div>
+                        <div>
+                            <label for="report-a-select" class="block text-sm font-medium text-gray-700">2. Compare o Relatório...</label>
+                            <select id="report-a-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" disabled></select>
+                        </div>
+                        <div>
+                            <label for="report-b-select" class="block text-sm font-medium text-gray-700">3. Com o Relatório...</label>
+                            <select id="report-b-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" disabled></select>
+                        </div>
+                    </div>
+                    <button id="generate-analysis-btn" class="mt-4 w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50" disabled>Gerar Análise</button>
+                </section>
+
+                <div id="analysis-results-container" class="mt-10 hidden">
+                    <div id="kpi-comparison-section" class="mb-8">
+                        <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Comparativo de Indicadores (KPIs)</h2>
+                        <div id="kpi-table" class="overflow-x-auto"></div>
+                    </div>
+                    <div id="sentiment-evolution-section" class="mb-8">
+                        <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Evolução do Sentimento</h2>
+                        <div class="bg-gray-50 p-4 rounded-lg shadow-inner h-80">
+                            <canvas id="sentiment-evolution-chart"></canvas>
+                        </div>
+                    </div>
+                    <div id="plan-execution-section" class="mb-8">
+                         <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Planejamento vs. Execução</h2>
+                         <div id="plan-execution-content" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        let currentUser = null;
+        let userProfile = null; // Guardar perfil para lógica
+        let sentimentEvolutionChart = null;
+
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            
+            // PERMISSÃO CORRIGIDA: Agora não expulsa mais o atendimento
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+            if (!profile) {
+                window.location.href = '/dashboard.html'; // Se não tiver perfil, volta
+                return;
+            }
+            userProfile = profile;
+
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
+
+        function initializePage() {
+            // Lógica do botão de voltar
+            const backLink = document.getElementById('back-link');
+            if (userProfile.role === 'admin' || userProfile.role === 'chefe') {
+                backLink.href = 'dashboard_gerencial.html';
+                backLink.textContent = 'Voltar ao Dashboard Gerencial';
+            } else {
+                backLink.href = 'dashboard_atendimento.html';
+                backLink.textContent = 'Voltar ao Meu Dashboard';
+            }
+
+            populateClientSelect();
+            document.getElementById('client-select').addEventListener('change', (e) => populateReportSelects(e.target.value));
+            document.getElementById('generate-analysis-btn').addEventListener('click', generateComparison);
+            
+            const selects = [document.getElementById('report-a-select'), document.getElementById('report-b-select')];
+            selects.forEach(s => s.addEventListener('change', () => {
+                document.getElementById('generate-analysis-btn').disabled = !(selects[0].value && selects[1].value);
+            }));
+        }
+
+        async function populateClientSelect() {
+            const select = document.getElementById('client-select');
+            select.innerHTML = '<option value="">Carregando...</option>';
+
+            let query = supabaseClient.from('clientes').select('id, name');
+            
+            // Se for atendimento, mostra apenas seus clientes
+            if (userProfile.role === 'atendimento') {
+                const { data: assignments, error } = await supabaseClient.from('atendimento_assignments').select('cliente_id').eq('user_id', currentUser.id);
+                if (error || assignments.length === 0) {
+                     select.innerHTML = '<option value="">Nenhum cliente na carteira</option>';
+                     return;
+                }
+                const clientIds = assignments.map(a => a.cliente_id);
+                query = query.in('id', clientIds);
+            }
+
+            const { data, error } = await query.order('name');
+            if(error) { select.innerHTML = '<option value="">Erro ao carregar</option>'; return; }
+            
+            select.innerHTML = '<option value="">Selecione um cliente</option>';
+            data.forEach(client => select.add(new Option(client.name, client.id)));
+        }
+
+        async function populateReportSelects(clientId) {
+            const reportASelect = document.getElementById('report-a-select');
+            const reportBSelect = document.getElementById('report-b-select');
+            reportASelect.innerHTML = '<option value="">Carregando...</option>';
+            reportBSelect.innerHTML = '<option value="">Carregando...</option>';
+            reportASelect.disabled = true; reportBSelect.disabled = true;
+
+            if(!clientId) {
+                reportASelect.innerHTML = '<option value="">Selecione um cliente</option>';
+                reportBSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+                return;
+            }
+
+            const { data: client } = await supabaseClient.from('clientes').select('name').eq('id', clientId).single();
+            
+            const { data, error } = await supabaseClient.from('relatorios_salvos')
+                .select('id, created_at')
+                .eq('cliente_nome', client.name)
+                .not('raw_data', 'is', null)
+                .order('created_at', { ascending: false });
+
+            if(error || data.length === 0) {
+                reportASelect.innerHTML = '<option value="">Nenhum relatório analisável</option>';
+                reportBSelect.innerHTML = '<option value="">Nenhum relatório analisável</option>';
+                return;
+            }
+
+            [reportASelect, reportBSelect].forEach(select => {
+                select.innerHTML = '<option value="">Selecione um relatório</option>';
+                data.forEach(report => {
+                    const date = new Date(report.created_at).toLocaleString('pt-BR');
+                    select.add(new Option(`Salvo em ${date}`, report.id));
+                });
+                select.disabled = false;
+            });
+        }
+        
+        async function generateComparison() {
+            const reportAId = document.getElementById('report-a-select').value;
+            const reportBId = document.getElementById('report-b-select').value;
+            if (!reportAId || !reportBId || reportAId === reportBId) { alert("Por favor, selecione dois relatórios diferentes."); return; }
+
+            document.getElementById('analysis-results-container').classList.remove('hidden');
+            document.getElementById('kpi-table').innerHTML = '<div class="loader mx-auto"></div>';
+
+            const [reportAResult, reportBResult] = await Promise.all([
+                supabaseClient.from('relatorios_salvos').select('raw_data').eq('id', reportAId).single(),
+                supabaseClient.from('relatorios_salvos').select('raw_data').eq('id', reportBId).single()
+            ]);
+            
+            if(reportAResult.error || reportBResult.error || !reportAResult.data.raw_data || !reportBResult.data.raw_data){
+                document.getElementById('kpi-table').innerHTML = '<p class="text-red-500">Erro: Não foi possível carregar os dados de um dos relatórios.</p>';
+                return;
+            }
+            
+            const dataA = reportAResult.data.raw_data;
+            const dataB = reportBResult.data.raw_data;
+
+            renderKpiComparison(dataA, dataB);
+            renderSentimentEvolution(dataA, dataB);
+            renderPlanExecution(dataA, dataB);
+        }
+
+        function calculateHighlights(data) {
+            const clippings = data.clippings || [];
+            const activities = data.activities || [];
+            return {
+                clippings: clippings.length,
+                positives: clippings.filter(c => c.classificacao === 'Positiva').length,
+                negatives: clippings.filter(c => c.classificacao === 'Negativa').length,
+                neutrals: clippings.filter(c => c.classificacao === 'Neutra').length,
+                activities: activities.length
+            };
+        }
+        
+        function renderKpiComparison(dataA, dataB) {
+            const highlightsA = calculateHighlights(dataA);
+            const highlightsB = calculateHighlights(dataB);
+            const kpiContainer = document.getElementById('kpi-table');
+
+            const metrics = [
+                { label: 'Total de Matérias', key: 'clippings' },
+                { label: 'Matérias Positivas', key: 'positives' },
+                { label: 'Matérias Negativas', key: 'negatives' },
+                { label: 'Atividades Realizadas', key: 'activities' }
+            ];
+            
+            let tableHTML = '<table class="min-w-full divide-y divide-gray-200"><thead><tr class="bg-gray-50"><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Métrica</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Relatório A</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Relatório B</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Variação</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">';
+
+            metrics.forEach(metric => {
+                const valA = highlightsA[metric.key];
+                const valB = highlightsB[metric.key];
+                const delta = valB - valA;
+                let deltaClass = 'neutral';
+                let deltaSymbol = '–';
+                if (delta > 0) { 
+                    deltaClass = (metric.key === 'negatives') ? 'negative' : 'positive';
+                    deltaSymbol = `▲ +${delta}`;
+                } else if (delta < 0) {
+                    deltaClass = (metric.key === 'negatives') ? 'positive' : 'negative';
+                    deltaSymbol = `▼ ${delta}`;
+                }
+                tableHTML += `<tr><td class="px-6 py-4 font-medium">${metric.label}</td><td class="px-6 py-4">${valA}</td><td class="px-6 py-4">${valB}</td><td class="px-6 py-4 font-bold kpi-delta ${deltaClass}">${deltaSymbol}</td></tr>`;
+            });
+
+            tableHTML += '</tbody></table>';
+            kpiContainer.innerHTML = tableHTML;
+        }
+
+        function renderSentimentEvolution(dataA, dataB) {
+            const highlightsA = calculateHighlights(dataA);
+            const highlightsB = calculateHighlights(dataB);
+            const ctx = document.getElementById('sentiment-evolution-chart').getContext('2d');
+
+            if (sentimentEvolutionChart) sentimentEvolutionChart.destroy();
+            
+            sentimentEvolutionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Positivas', 'Negativas', 'Neutras'],
+                    datasets: [
+                        { label: 'Relatório A', data: [highlightsA.positives, highlightsA.negatives, highlightsA.neutrals], backgroundColor: 'rgba(129, 140, 248, 0.7)' },
+                        { label: 'Relatório B', data: [highlightsB.positives, highlightsB.negatives, highlightsB.neutrals], backgroundColor: 'rgba(79, 70, 229, 0.7)' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+        }
+        
+        function renderPlanExecution(dataA, dataB) {
+            const container = document.getElementById('plan-execution-content');
+            const planned = dataA.nextSteps || "Nenhum plano de ação definido no Relatório A.";
+            const executedActivities = dataB.activities || [];
+
+            container.innerHTML = `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-bold text-gray-800 mb-2">Planejado no Relatório A</h3>
+                    <div class="text-sm text-gray-700 whitespace-pre-wrap font-mono">${planned}</div>
+                </div>
+                 <div class="bg-green-50 p-4 rounded-lg">
+                    <h3 class="font-bold text-gray-800 mb-2">Executado no Período do Relatório B</h3>
+                    <ul class="text-sm text-gray-700 list-disc list-inside">
+                        ${executedActivities.length > 0 ? executedActivities.map(act => `<li><strong>${act.tipo}:</strong> ${act.titulo}</li>`).join('') : '<li>Nenhuma atividade registrada.</li>'}
+                    </ul>
+                </div>
+            `;
+        }
+
+        handleAuth();
+    </script>
+</body>
+</html>

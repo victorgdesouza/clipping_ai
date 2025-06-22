@@ -9,7 +9,7 @@
     <style>
         .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinner-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .spinner-overlay, .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; overflow-y: auto; padding: 2rem; }
         .notification-popup { position: fixed; top: 20px; right: 20px; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 10000; transform: translateX(120%); transition: transform 0.3s ease-in-out; }
         .notification-popup.show { transform: translateX(0); }
     </style>
@@ -24,29 +24,23 @@
                 <div><h1 class="text-3xl font-bold text-gray-800">Gerenciar Usuários</h1><p id="user-email" class="text-sm text-gray-500"></p></div>
                 <a href="dashboard.html" class="text-blue-500 hover:underline">Voltar ao Dashboard</a>
             </header>
+            
             <main>
-                <section class="mb-8">
-                    <h2 class="text-2xl font-semibold mb-4">Criar Novo Usuário</h2>
-                    <form id="create-user-form" class="bg-gray-50 p-4 rounded-lg">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="email" id="new-user-email" placeholder="E-mail do novo usuário" class="p-2 border rounded-md w-full" required>
-                            <input type="password" id="new-user-password" placeholder="Senha temporária" class="p-2 border rounded-md w-full" required>
-                        </div>
-                        <button type="submit" class="w-full mt-4 bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700">Criar Usuário</button>
+                <section>
+                    <h2 class="text-2xl font-semibold mb-4">Adicionar Novo Usuário</h2>
+                    <form id="create-user-form" class="space-y-4 bg-gray-50 p-4 rounded-lg">
+                        <input type="email" id="new-user-email" placeholder="E-mail do novo usuário" class="p-2 border rounded-md w-full" required>
+                        <input type="password" id="new-user-password" placeholder="Senha temporária" class="p-2 border rounded-md w-full" required>
+                        <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700">Criar Usuário</button>
                     </form>
                 </section>
-                <section>
-                    <h2 class="text-2xl font-semibold mb-4">Usuários Registrados</h2>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full bg-white">
-                            <thead class="bg-gray-200">
-                                <tr>
-                                    <th class="py-3 px-4 text-left">E-mail</th>
-                                    <th class="py-3 px-4 text-left">Função Atual</th>
-                                    </tr>
-                            </thead>
-                            <tbody id="users-list">
-                            </tbody>
+
+                <section class="mt-10">
+                    <h2 class="text-2xl font-semibold mb-4">Lista de Usuários</h2>
+                    <div class="overflow-x-auto bg-white rounded-lg shadow">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50"><tr><th class="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuário (E-mail)</th><th class="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Função</th><th class="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th></tr></thead>
+                            <tbody id="users-list" class="bg-white divide-y divide-gray-200"></tbody>
                         </table>
                     </div>
                 </section>
@@ -54,113 +48,203 @@
         </div>
     </div>
     
+    <div id="assignment-modal" class="modal-overlay hidden">
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <h2 id="assignment-modal-title" class="text-2xl font-bold mb-4 text-gray-800">Atribuir Clientes</h2>
+            <div id="client-assignment-list" class="flex-grow overflow-y-auto space-y-2 border-t border-b py-4 my-4">
+                </div>
+            <div class="flex justify-end gap-4 mt-auto">
+                <button type="button" id="cancel-assignment-btn" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-400">Cancelar</button>
+                <button type="button" id="save-assignment-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Salvar Atribuições</button>
+            </div>
+        </div>
+    </div>
+
     <div id="notification-popup" class="notification-popup"><p id="notification-message"></p></div>
+
     <script>
-    const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
-    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        let currentUser = null;
+        let allClientsList = [];
 
-    function showNotification(message, type = 'success') {
-        const popup = document.getElementById('notification-popup');
-        const messageEl = document.getElementById('notification-message');
-        if (!popup || !messageEl) return;
-        messageEl.textContent = message;
-        popup.className = 'notification-popup show';
-        popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
-        setTimeout(() => { popup.classList.remove('show'); }, 3500);
-    }
-    
-    let currentAdminUser = null;
-
-    async function initializeAdminPage() {
-        const loadingScreen = document.getElementById('loading-screen');
-        const mainContent = document.getElementById('main-content');
-        
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
-        if (error || !session) {
-            window.location.href = '/index.html';
-            return;
-        }
-        currentAdminUser = session.user;
-
-        const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentAdminUser.id).single();
-        if (!profile || profile.role !== 'admin') {
-            document.body.innerHTML = '<p style="color:red; text-align:center; padding-top: 5rem;">Acesso negado. Esta página é restrita a administradores.</p>';
-            setTimeout(() => window.location.href = '/dashboard.html', 3000);
-            return;
+        function showNotification(message, type = 'success') {
+            const popup = document.getElementById('notification-popup');
+            const p = popup.querySelector('p');
+            p.textContent = message;
+            popup.className = 'notification-popup show';
+            popup.style.backgroundColor = type === 'error' ? '#ef4444' : '#22c55e';
+            setTimeout(() => { popup.classList.remove('show'); }, 3500);
         }
 
-        document.getElementById('user-email').textContent = currentAdminUser.email;
-        document.getElementById('create-user-form').addEventListener('submit', handleCreateUser);
-        
-        loadingScreen.style.display = 'none';
-        mainContent.style.display = 'block';
-
-        await loadUsersList();
-    }
-
-    async function loadUsersList() {
-        const listElement = document.getElementById('users-list');
-        // Colspan ajustado para 2 colunas
-        listElement.innerHTML = `<tr><td colspan="2" class="text-center p-4"><div class="loader mx-auto"></div></td></tr>`;
-        try {
-            const { data: users, error } = await supabaseClient.functions.invoke('get-users');
-            if (error) throw error;
-            if (users.error) throw new Error(users.error);
-
-            listElement.innerHTML = '';
-            if (users.length === 0) {
-                // Colspan ajustado para 2 colunas
-                listElement.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-gray-500">Nenhum usuário encontrado.</td></tr>`;
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+            if (profile.role !== 'admin' && profile.role !== 'chefe') {
+                document.getElementById('main-content').innerHTML = '<div class="text-center p-8"><h1 class="text-2xl text-red-600">Acesso Negado</h1><p>Você não tem permissão para ver esta página.</p><a href="dashboard.html" class="text-blue-500 hover:underline mt-4 inline-block">Voltar ao Dashboard</a></div>';
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
                 return;
             }
 
-            users.forEach(user => {
-                const userRow = document.createElement('tr');
-                userRow.className = 'border-b hover:bg-gray-50';
-                
-                // HTML da linha simplificado para remover a coluna de alteração de função
-                userRow.innerHTML = `
-                    <td class="py-3 px-4">${user.email || 'E-mail indisponível'}</td>
-                    <td class="py-3 px-4 capitalize font-medium">${user.role}</td>
-                `;
-                listElement.appendChild(userRow);
-            });
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
+
+        async function initializePage() {
+            document.getElementById('create-user-form').addEventListener('submit', handleCreateUser);
+            document.getElementById('cancel-assignment-btn').addEventListener('click', () => document.getElementById('assignment-modal').classList.add('hidden'));
             
-        } catch(e) {
-            // Colspan ajustado para 2 colunas
-            listElement.innerHTML = `<tr><td colspan="2" class="text-center p-4 text-red-500">Erro ao carregar usuários: ${e.message}</td></tr>`;
+            await fetchAllClients();
+            await loadUsersList();
         }
-    }
 
-    async function handleCreateUser(e) {
-        e.preventDefault();
-        const form = e.target;
-        const email = form.querySelector('#new-user-email').value;
-        const password = form.querySelector('#new-user-password').value;
-        if (!email || !password) {
-            showNotification("Por favor, preencha e-mail e senha.", "error");
-            return;
+        async function fetchAllClients() {
+            const { data, error } = await supabaseClient.from('clientes').select('id, name').order('name');
+            if(error) {
+                showNotification("Erro ao carregar lista de clientes.", 'error');
+                return;
+            }
+            allClientsList = data;
         }
-        document.getElementById('spinner').classList.remove('hidden');
-        try {
-            // A função 'create-user' deve definir o 'role' padrão como 'atendimento' no backend
-            const { data, error } = await supabaseClient.functions.invoke('create-user', { body: { email, password } });
-            if (error) throw error;
-            if (data.error) throw new Error(data.error);
-            showNotification("Usuário criado com sucesso!", "success");
-            form.reset();
-            loadUsersList(); // Recarrega a lista para mostrar o novo usuário
-        } catch (e) {
-            showNotification("Erro ao criar usuário: " + e.message, "error");
-        } finally {
-            document.getElementById('spinner').classList.add('hidden');
+
+        async function loadUsersList() {
+            const listElement = document.getElementById('users-list');
+            listElement.innerHTML = `<tr><td colspan="3" class="text-center p-4"><div class="loader mx-auto"></div></td></tr>`;
+            try {
+                const { data: users, error } = await supabaseClient.rpc('get_users_with_roles');
+                if (error) throw error;
+
+                if (users.length === 0) {
+                    listElement.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-gray-500">Nenhum usuário encontrado.</td></tr>`;
+                    return;
+                }
+                listElement.innerHTML = '';
+                users.forEach(user => {
+                    const tr = document.createElement('tr');
+                    const roleDisplayName = user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Não definido';
+                    
+                    let actionsHtml = '';
+                    if(user.role === 'atendimento') {
+                        actionsHtml += `<button data-userid="${user.id}" data-useremail="${user.email}" class="assign-btn bg-blue-500 text-white px-3 py-1 text-xs font-bold rounded hover:bg-blue-600">Atribuir Clientes</button>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td class="p-4 whitespace-nowrap"><div class="font-medium text-gray-900">${user.email}</div></td>
+                        <td class="p-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' || user.role === 'chefe' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">${roleDisplayName}</span></td>
+                        <td class="p-4 whitespace-nowrap text-sm font-medium">${actionsHtml}</td>
+                    `;
+                    listElement.appendChild(tr);
+                });
+
+                document.querySelectorAll('.assign-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        openAssignmentModal(e.target.dataset.userid, e.target.dataset.useremail);
+                    });
+                });
+            } catch (e) {
+                listElement.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-red-500">Erro ao carregar usuários: ${e.message}</td></tr>`;
+            }
         }
-    }
 
-    // Função handleRoleChange e showConfirmation foram removidas por não serem mais necessárias
+        async function handleCreateUser(e) {
+            e.preventDefault();
+            const form = e.target;
+            const email = form.querySelector('#new-user-email').value;
+            const password = form.querySelector('#new-user-password').value;
+            if (!email || !password) { showNotification("Por favor, preencha e-mail e senha.", "error"); return; }
+            document.getElementById('spinner').classList.remove('hidden');
+            try {
+                const { data, error } = await supabaseClient.functions.invoke('create-user', { body: { email, password } });
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+                showNotification("Usuário criado com sucesso!", "success");
+                form.reset();
+                loadUsersList();
+            } catch (e) {
+                showNotification("Erro ao criar usuário: " + e.message, "error");
+            } finally {
+                document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+        
+        async function openAssignmentModal(userId, userEmail) {
+            const modal = document.getElementById('assignment-modal');
+            const title = document.getElementById('assignment-modal-title');
+            const listContainer = document.getElementById('client-assignment-list');
+            const saveBtn = document.getElementById('save-assignment-btn');
 
-    initializeAdminPage();
-</script>
+            title.textContent = `Atribuir Clientes para: ${userEmail}`;
+            listContainer.innerHTML = '<div class="loader mx-auto"></div>';
+            modal.classList.remove('hidden');
+
+            try {
+                const { data: currentAssignments, error: assignmentsError } = await supabaseClient
+                    .from('atendimento_assignments')
+                    .select('cliente_id')
+                    .eq('user_id', userId);
+                if (assignmentsError) throw assignmentsError;
+                
+                const assignedClientIds = new Set(currentAssignments.map(a => a.cliente_id));
+
+                listContainer.innerHTML = '';
+                allClientsList.forEach(client => {
+                    const isChecked = assignedClientIds.has(client.id);
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center p-2 rounded-md hover:bg-gray-100';
+                    div.innerHTML = `
+                        <input id="client-${client.id}" type="checkbox" value="${client.id}" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" ${isChecked ? 'checked' : ''}>
+                        <label for="client-${client.id}" class="ml-3 text-sm text-gray-700">${client.name}</label>
+                    `;
+                    listContainer.appendChild(div);
+                });
+
+                saveBtn.onclick = () => handleSaveAssignments(userId);
+
+            } catch(e) {
+                showNotification('Erro ao carregar clientes: ' + e.message, 'error');
+                listContainer.innerHTML = '<p class="text-red-500">Não foi possível carregar a lista.</p>';
+            }
+        }
+
+        async function handleSaveAssignments(userId) {
+            document.getElementById('spinner').classList.remove('hidden');
+            
+            // AQUI ESTÁ A CORREÇÃO: Removido o `parseInt()`
+            const selectedClientIds = Array.from(document.querySelectorAll('#client-assignment-list input[type="checkbox"]:checked'))
+                .map(cb => cb.value); // Apenas pega o valor (que já é o UUID em formato texto)
+            
+            const newAssignments = selectedClientIds.map(clientId => ({
+                user_id: userId,
+                cliente_id: clientId
+            }));
+
+            try {
+                const { error: deleteError } = await supabaseClient.from('atendimento_assignments').delete().eq('user_id', userId);
+                if (deleteError) throw deleteError;
+
+                if (newAssignments.length > 0) {
+                    const { error: insertError } = await supabaseClient.from('atendimento_assignments').insert(newAssignments);
+                    if (insertError) throw insertError;
+                }
+                
+                showNotification('Atribuições salvas com sucesso!', 'success');
+                document.getElementById('assignment-modal').classList.add('hidden');
+
+            } catch(e) {
+                showNotification('Erro ao salvar atribuições: ' + e.message, 'error');
+            } finally {
+                document.getElementById('spinner').classList.add('hidden');
+            }
+        }
+
+        handleAuth();
+    </script>
 </body>
 </html>

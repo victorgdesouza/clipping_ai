@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard do Atendimento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .kpi-card { transition: all 0.2s ease-in-out; }
+        .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-8">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Meu Desempenho</h1>
+                    <p id="user-email" class="text-sm text-gray-500"></p>
+                </div>
+                <div>
+                    <a href="dashboard.html" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300 mr-4">Voltar ao Dashboard Geral</a>
+                    <button id="logout-button" class="mt-2 md:mt-0 bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700">Sair</button>
+                </div>
+            </header>
+            <main id="dashboard-body">
+                
+                <section class="mb-8">
+                    <a href="analise_comparativa.html" class="block p-6 bg-green-600 text-white rounded-lg shadow-lg hover:bg-green-700 transition-transform transform hover:scale-105">
+                        <div class="flex items-center gap-4">
+                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-10 h-10 opacity-80">
+                                <path d="M18.375 2.25c-1.035 0-1.875.84-1.875 1.875v15.75c0 1.035.84 1.875 1.875 1.875h.75c1.035 0 1.875-.84 1.875-1.875V4.125c0-1.035-.84-1.875-1.875-1.875h-.75zM9.75 8.625c0-1.036.84-1.875 1.875-1.875h.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-.75c-1.036 0-1.875-.84-1.875-1.875V8.625zM3 13.125c0-1.036.84-1.875 1.875-1.875h.75c1.035 0 1.875.84 1.875 1.875v6.75c0 1.035-.84 1.875-1.875 1.875h-.75A1.875 1.875 0 013 19.875v-6.75z" />
+                            </svg>
+                            <div>
+                                <h2 class="font-bold text-2xl">Análise Comparativa de Relatórios</h2>
+                                <p class="mt-1">Compare o desempenho entre dois relatórios salvos para extrair insights.</p>
+                            </div>
+                        </div>
+                    </a>
+                </section>
+
+                <section id="kpi-section">
+                    <h2 class="text-2xl font-semibold mb-4">Resumo do Mês (Minha Carteira)</h2>
+                    <div id="kpi-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+                </section>
+
+                <section class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 space-y-8">
+                        <div>
+                            <h2 class="text-2xl font-semibold mb-4">Sentimento da Mídia</h2>
+                            <div class="bg-gray-50 p-4 rounded-lg shadow-inner h-80 flex items-center justify-center">
+                                <canvas id="sentimentChart"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-semibold mb-4">Meus Clientes</h2>
+                            <div id="my-clients-list" class="space-y-2"></div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-1">
+                        <h2 class="text-2xl font-semibold mb-4">Atividade Recente</h2>
+                        <div id="recent-activity-feed" class="space-y-4"></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        let currentUser = null;
+        let sentimentChart = null;
+
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('logout-button').addEventListener('click', async () => {
+                sessionStorage.removeItem('userMode');
+                await supabaseClient.auth.signOut();
+                window.location.href = '/index.html';
+            });
+
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+
+            loadDashboardData();
+        }
+
+        async function loadDashboardData() {
+            try {
+                const { data: assignments, error: assignmentsError } = await supabaseClient
+                    .from('atendimento_assignments')
+                    .select('cliente_id')
+                    .eq('user_id', currentUser.id);
+                if (assignmentsError) throw assignmentsError;
+
+                const assignedClientIds = assignments.map(a => a.cliente_id);
+
+                if (assignedClientIds.length === 0) {
+                    document.getElementById('kpi-section').innerHTML = '<div class="text-center p-8 bg-gray-50 rounded-lg"><h1 class="text-xl font-semibold text-gray-700">Você ainda não possui clientes na sua carteira.</h1><p class="text-gray-600 mt-2">Peça para um administrador atribuir clientes a você na página de "Gerenciar Usuários".</p></div>';
+                    document.querySelector('.lg\\:grid-cols-3').classList.add('hidden'); // Oculta a seção de gráficos e listas
+                    return;
+                }
+                
+                 const { data: clientDetails, error: clientDetailsError } = await supabaseClient
+                    .from('clientes')
+                    .select('id, name, logo_url')
+                    .in('id', assignedClientIds);
+                if (clientDetailsError) throw clientDetailsError;
+
+                const assignedClientNames = clientDetails.map(c => c.name);
+
+                const today = new Date();
+                const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+                const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
+
+                const [clippingsResult, activitiesResult] = await Promise.all([
+                    supabaseClient.from('clippings').select('*').in('cliente', assignedClientNames).gte('data_publicacao', startDate).lte('data_publicacao', endDate),
+                    supabaseClient.from('atividades').select('*').in('cliente', assignedClientNames).gte('data_atividade', startDate).lte('data_atividade', endDate)
+                ]);
+
+                if (clippingsResult.error) throw clippingsResult.error;
+                if (activitiesResult.error) throw activitiesResult.error;
+                
+                const clippings = clippingsResult.data;
+                const activities = activitiesResult.data;
+
+                renderKPIs(clippings, activities);
+                renderSentimentChart(clippings);
+                renderMyClientsList(clientDetails);
+                renderActivityFeed(clippings, activities);
+
+            } catch(e) {
+                console.error("Erro ao carregar dados do dashboard:", e);
+                document.getElementById('dashboard-body').innerHTML = `<div class="text-center p-8 bg-red-50 rounded-lg"><h1 class="text-xl text-red-600">Ocorreu um erro ao carregar seus dados.</h1><p class="text-gray-600 mt-2">Tente recarregar a página. Detalhes: ${e.message}</p></div>`;
+            }
+        }
+
+        function renderKPIs(clippings, activities) {
+            const positiveCount = clippings.filter(c => c.classificacao === 'Positiva').length;
+            const negativeCount = clippings.filter(c => c.classificacao === 'Negativa').length;
+            const kpiContainer = document.getElementById('kpi-cards');
+            kpiContainer.innerHTML = `
+                <div class="kpi-card bg-blue-50 p-4 rounded-lg shadow-sm"><p class="text-3xl font-bold text-blue-800">${clippings.length}</p><p class="text-sm font-semibold text-blue-600">Total de Clippings</p></div>
+                <div class="kpi-card bg-green-50 p-4 rounded-lg shadow-sm"><p class="text-3xl font-bold text-green-800">${positiveCount}</p><p class="text-sm font-semibold text-green-600">Matérias Positivas</p></div>
+                <div class="kpi-card bg-red-50 p-4 rounded-lg shadow-sm"><p class="text-3xl font-bold text-red-800">${negativeCount}</p><p class="text-sm font-semibold text-red-600">Matérias Negativas</p></div>
+                <div class="kpi-card bg-purple-50 p-4 rounded-lg shadow-sm"><p class="text-3xl font-bold text-purple-800">${activities.length}</p><p class="text-sm font-semibold text-purple-600">Atividades Realizadas</p></div>
+            `;
+        }
+
+        function renderSentimentChart(clippings) {
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            const classData = { Positiva: 0, Negativa: 0, Neutra: 0 };
+            clippings.forEach(c => { if(classData.hasOwnProperty(c.classificacao)) classData[c.classificacao]++; });
+            
+            if (sentimentChart) { sentimentChart.destroy(); }
+            sentimentChart = new Chart(ctx, { 
+                type: 'doughnut', 
+                data: { 
+                    labels: Object.keys(classData), 
+                    datasets: [{ data: Object.values(classData), backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'], borderWidth: 0 }] 
+                }, 
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        function renderMyClientsList(clients) {
+            const listContainer = document.getElementById('my-clients-list');
+            if (clients.length === 0) {
+                listContainer.innerHTML = '<p class="text-gray-500 italic">Nenhum cliente atribuído.</p>';
+                return;
+            }
+            listContainer.innerHTML = clients.map(client => `
+                <div class="flex items-center bg-gray-50 p-3 rounded-md hover:bg-gray-100">
+                    <img src="${client.logo_url || 'https://placehold.co/40x40/f3f4f6/9ca3af?text=?'}" alt="Logo" class="w-10 h-10 object-contain mr-4 rounded-md">
+                    <span class="font-semibold text-gray-700">${client.name}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderActivityFeed(clippings, activities) {
+            const feedContainer = document.getElementById('recent-activity-feed');
+            const combinedFeed = [
+                ...clippings.map(c => ({ ...c, type: 'clipping', date: c.data_publicacao })),
+                ...activities.map(a => ({ ...a, type: 'activity', date: a.data_atividade }))
+            ];
+            
+            combinedFeed.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (combinedFeed.length === 0) {
+                feedContainer.innerHTML = '<p class="text-gray-500 italic">Nenhuma atividade recente para seus clientes.</p>';
+                return;
+            }
+
+            feedContainer.innerHTML = combinedFeed.slice(0, 10).map(item => {
+                const date = new Date(item.date);
+                date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+                const dateString = date.toLocaleDateString('pt-BR');
+
+                if (item.type === 'clipping') {
+                    return `
+                        <div class="border-l-4 border-blue-400 pl-3">
+                            <p class="font-bold text-sm text-gray-800">${item.titulo}</p>
+                            <p class="text-xs text-gray-500">Clipping | ${item.cliente} | ${dateString}</p>
+                        </div>
+                    `;
+                } else { // activity
+                    return `
+                        <div class="border-l-4 border-green-400 pl-3">
+                            <p class="font-bold text-sm text-gray-800">${item.titulo}</p>
+                            <p class="text-xs text-gray-500">Atividade (${item.tipo}) | ${item.cliente} | ${dateString}</p>
+                        </div>
+                    `;
+                }
+            }).join('');
+        }
+        
+        handleAuth();
+    </script>
+</body>
+</html>

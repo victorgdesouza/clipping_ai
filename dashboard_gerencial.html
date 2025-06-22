@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Gerencial</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 40px; height: 40px; animation: spin 1s linear infinite; } 
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .tab-btn { transition: all 0.2s; border-bottom: 4px solid transparent; }
+        .tab-btn.active { border-bottom-color: #4f46e5; color: #4f46e5; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen"><div class="loader"></div></div>
+
+    <div id="main-content" class="container mx-auto p-4 w-full" style="display: none;">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <header class="flex flex-wrap justify-between items-center border-b pb-4 mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Dashboard Gerencial</h1>
+                    <p id="user-email" class="text-sm text-gray-500"></p>
+                </div>
+                <a href="dashboard.html" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Voltar ao Dashboard Principal</a>
+            </header>
+            <main>
+                <section id="global-charts-section" class="mb-10">
+                    <h2 class="text-2xl font-semibold mb-4">Visão Geral da Agência (Últimos 30 dias)</h2>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <h3 class="font-semibold mb-2 text-gray-700">Top 10 Clientes por Volume de Clippings</h3>
+                        <div class="h-96 relative">
+                            <canvas id="top-clients-chart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="border-b border-gray-200 mb-6">
+                    <nav class="flex -mb-px space-x-6" aria-label="Tabs">
+                        <button id="tab-atendimento" class="tab-btn active text-lg font-medium py-3 px-1">Visão por Atendimento</button>
+                        <button id="tab-cliente" class="tab-btn text-lg font-medium py-3 px-1 text-gray-500 hover:text-gray-700">Visão por Cliente</button>
+                    </nav>
+                </div>
+
+                <div id="view-by-atendimento" class="view">
+                    <div class="mb-4">
+                        <label for="atendimento-select" class="block text-sm font-medium text-gray-700">Selecione um Atendimento para ver seu desempenho:</label>
+                        <select id="atendimento-select" class="mt-1 block w-full md:w-1/2 p-2 border border-gray-300 rounded-md shadow-sm"></select>
+                    </div>
+                    <div id="atendimento-dashboard-content" class="mt-6">
+                        <p class="text-center text-gray-500 p-8 bg-gray-50 rounded-lg">Selecione um atendimento para começar.</p>
+                    </div>
+                </div>
+
+                <div id="view-by-cliente" class="view hidden">
+                    <div class="mb-4">
+                        <label for="cliente-select" class="block text-sm font-medium text-gray-700">Selecione um Cliente para ver seu desempenho:</label>
+                        <select id="cliente-select" class="mt-1 block w-full md:w-1/2 p-2 border border-gray-300 rounded-md shadow-sm"></select>
+                    </div>
+                    <div id="cliente-dashboard-content" class="mt-6">
+                         <p class="text-center text-gray-500 p-8 bg-gray-50 rounded-lg">Selecione um cliente para começar.</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        const supabaseUrl = 'https://ojejoifgyledbsesipdr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZWpvaWZneWxlZGJzZXNpcGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MDU5NjUsImV4cCI6MjA2NTE4MTk2NX0.MrGJIa2xIAW8OUQ5PiUXAFXgT9-rHdwgw_SRZcZ6g_Q';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        let currentUser = null;
+        let chartInstances = {};
+
+        async function handleAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) { window.location.href = '/index.html'; return; }
+            currentUser = session.user;
+            
+            const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+            if (!profile || (profile.role !== 'admin' && profile.role !== 'chefe')) {
+                window.location.href = '/dashboard.html';
+                return;
+            }
+
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            initializePage();
+        }
+        
+        function initializePage() {
+            const tabAtendimento = document.getElementById('tab-atendimento');
+            const tabCliente = document.getElementById('tab-cliente');
+            const viewAtendimento = document.getElementById('view-by-atendimento');
+            const viewCliente = document.getElementById('view-by-cliente');
+
+            tabAtendimento.addEventListener('click', () => {
+                tabAtendimento.classList.add('active'); tabCliente.classList.remove('active');
+                viewAtendimento.classList.remove('hidden'); viewCliente.classList.add('hidden');
+            });
+            tabCliente.addEventListener('click', () => {
+                tabCliente.classList.add('active'); tabAtendimento.classList.remove('active');
+                viewCliente.classList.remove('hidden'); viewAtendimento.classList.add('hidden');
+            });
+
+            document.getElementById('atendimento-select').addEventListener('change', (e) => loadAtendimentoDashboard(e.target.value));
+            document.getElementById('cliente-select').addEventListener('change', (e) => loadClienteDashboard(e.target.value));
+            
+            populateDropdowns();
+            loadGlobalTopClientsChart();
+        }
+
+        async function loadGlobalTopClientsChart() {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const { data: clippings, error } = await supabaseClient
+                .from('clippings')
+                .select('cliente')
+                .gte('data_publicacao', thirtyDaysAgo.toISOString());
+            
+            if(error || !clippings) {
+                console.error("Erro ao buscar clippings globais:", error);
+                return;
+            }
+
+            const clientCounts = clippings.reduce((acc, c) => {
+                acc[c.cliente] = (acc[c.cliente] || 0) + 1;
+                return acc;
+            }, {});
+
+            const topClients = Object.entries(clientCounts)
+                .sort(([, countA], [, countB]) => countB - countA)
+                .slice(0, 10);
+
+            const ctx = document.getElementById('top-clients-chart').getContext('2d');
+            if(chartInstances.global) chartInstances.global.destroy();
+            
+            chartInstances.global = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topClients.map(c => c[0]),
+                    datasets: [{
+                        label: 'Nº de Clippings',
+                        data: topClients.map(c => c[1]),
+                        backgroundColor: 'rgba(79, 70, 229, 0.8)',
+                        borderColor: 'rgba(79, 70, 229, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        async function populateDropdowns() {
+            const { data: users, error: usersError } = await supabaseClient.rpc('get_users_with_roles');
+            if (usersError) return;
+            const atendimentoSelect = document.getElementById('atendimento-select');
+            atendimentoSelect.innerHTML = '<option value="">Selecione...</option>';
+            users.filter(u => u.role === 'atendimento').forEach(u => atendimentoSelect.add(new Option(u.email, u.id)));
+
+            const { data: clientes, error: clientesError } = await supabaseClient.from('clientes').select('name').order('name');
+            if(clientesError) return;
+            const clienteSelect = document.getElementById('cliente-select');
+            clienteSelect.innerHTML = '<option value="">Selecione...</option>';
+            clientes.forEach(c => clienteSelect.add(new Option(c.name, c.name)));
+        }
+
+        function getDashboardContentHTML(idSuffix) {
+            return `
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-cards-${idSuffix}"></div>
+                <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner h-80 flex items-center justify-center">
+                        <canvas id="sentimentChart-${idSuffix}"></canvas>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <h3 class="font-semibold mb-2">Atividade Recente</h3>
+                        <div id="feed-${idSuffix}" class="space-y-3 overflow-y-auto h-64"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadAtendimentoDashboard(userId) {
+            const container = document.getElementById('atendimento-dashboard-content');
+            if (!userId) { container.innerHTML = '<p class="text-center text-gray-500 p-8 bg-gray-50 rounded-lg">Selecione um atendimento para começar.</p>'; return; }
+            
+            container.innerHTML = getDashboardContentHTML('atendimento');
+            const kpiContainer = document.getElementById('kpi-cards-atendimento');
+            kpiContainer.innerHTML = '<div class="loader mx-auto col-span-4"></div>';
+
+            const { data: assignments, error: assignmentsError } = await supabaseClient.from('atendimento_assignments').select('cliente_id').eq('user_id', userId);
+            if(assignmentsError) { return; }
+
+            const assignedClientIds = assignments.map(a => a.cliente_id);
+            if(assignedClientIds.length === 0) { container.innerHTML = '<p class="text-center text-gray-500 p-8 bg-gray-50 rounded-lg">Este usuário não possui clientes em sua carteira.</p>'; return; }
+
+            const { data: clientDetails, error: clientDetailsError } = await supabaseClient.from('clientes').select('name').in('id', assignedClientIds);
+            const assignedClientNames = clientDetails.map(c => c.name);
+
+            fetchAndRenderData(assignedClientNames, 'atendimento');
+        }
+
+        async function loadClienteDashboard(clientName) {
+            const container = document.getElementById('cliente-dashboard-content');
+            if (!clientName) { container.innerHTML = '<p class="text-center text-gray-500 p-8 bg-gray-50 rounded-lg">Selecione um cliente para começar.</p>'; return; }
+            
+            container.innerHTML = getDashboardContentHTML('cliente');
+            const kpiContainer = document.getElementById('kpi-cards-cliente');
+            kpiContainer.innerHTML = '<div class="loader mx-auto col-span-4"></div>';
+            
+            fetchAndRenderData([clientName], 'cliente');
+        }
+
+        async function fetchAndRenderData(clientNames, idSuffix) {
+            const today = new Date();
+            const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+            const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
+            
+            const [clippingsResult, activitiesResult] = await Promise.all([
+                supabaseClient.from('clippings').select('*').in('cliente', clientNames).gte('data_publicacao', startDate).lte('data_publicacao', endDate),
+                supabaseClient.from('atividades').select('*').in('cliente', clientNames).gte('data_atividade', startDate).lte('data_atividade', endDate)
+            ]);
+            
+            const clippings = clippingsResult.data || [];
+            const activities = activitiesResult.data || [];
+
+            const kpiContainer = document.getElementById(`kpi-cards-${idSuffix}`);
+            const positiveCount = clippings.filter(c => c.classificacao === 'Positiva').length;
+            const negativeCount = clippings.filter(c => c.classificacao === 'Negativa').length;
+            kpiContainer.innerHTML = `
+                <div class="bg-blue-50 p-4 rounded-lg shadow-sm"><p class="text-2xl font-bold text-blue-800">${clippings.length}</p><p class="text-xs font-semibold text-blue-600">Total de Clippings</p></div>
+                <div class="bg-green-50 p-4 rounded-lg shadow-sm"><p class="text-2xl font-bold text-green-800">${positiveCount}</p><p class="text-xs font-semibold text-green-600">Matérias Positivas</p></div>
+                <div class="bg-red-50 p-4 rounded-lg shadow-sm"><p class="text-2xl font-bold text-red-800">${negativeCount}</p><p class="text-xs font-semibold text-red-600">Matérias Negativas</p></div>
+                <div class="bg-purple-50 p-4 rounded-lg shadow-sm"><p class="text-2xl font-bold text-purple-800">${activities.length}</p><p class="text-xs font-semibold text-purple-600">Atividades Realizadas</p></div>
+            `;
+
+            const ctx = document.getElementById(`sentimentChart-${idSuffix}`).getContext('2d');
+            const classData = { Positiva: 0, Negativa: 0, Neutra: 0 };
+            clippings.forEach(c => { if(classData.hasOwnProperty(c.classificacao)) classData[c.classificacao]++; });
+            if (chartInstances[idSuffix]) chartInstances[idSuffix].destroy();
+            chartInstances[idSuffix] = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(classData), datasets: [{ data: Object.values(classData), backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }});
+
+            const feedContainer = document.getElementById(`feed-${idSuffix}`);
+            const combinedFeed = [...clippings.map(c => ({ ...c, feedType: 'clipping', date: c.data_publicacao })), ...activities.map(a => ({ ...a, feedType: 'activity', date: a.data_atividade }))];
+            combinedFeed.sort((a, b) => new Date(b.date) - new Date(a.date));
+            if (combinedFeed.length === 0) {
+                feedContainer.innerHTML = '<p class="text-gray-500 italic text-center p-4">Nenhuma atividade recente.</p>';
+                return;
+            }
+            feedContainer.innerHTML = combinedFeed.slice(0, 10).map(item => `<div class="border-l-4 ${item.feedType === 'clipping' ? 'border-blue-400' : 'border-green-400'} pl-3"><p class="font-bold text-sm">${item.titulo}</p><p class="text-xs text-gray-500">${item.cliente} | ${new Date(item.date).toLocaleDateString('pt-BR')}</p></div>`).join('');
+        }
+        
+        handleAuth();
+    </script>
+</body>
+</html>
